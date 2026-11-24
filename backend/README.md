@@ -6,6 +6,7 @@ FastAPI + PostgreSQL backend for HealthSpeak AI.
 |---|---|
 | 1 — Skeleton, database, health checks | done |
 | 2 — Users, login/logout, roles, UI-language preference | done |
+| 3 — Patient profiles, consent history; React login + sign-up connected | done |
 
 ## What runs where
 
@@ -128,6 +129,24 @@ With the API running, open in a browser:
 | `PATCH /api/users/me/preferences` | logged in | `{ui_language: "en" \| "hi" \| "ur"}` for this user only |
 | `GET /api/admin/users` | admin | List users (`?role=doctor&limit=50&offset=0`) |
 | `POST /api/admin/users` | admin | Create an account |
+| `GET /api/consent/current?language=hi` | anyone | Current consent wording + version (en/hi/ur) |
+| `POST /api/patients/register` | anyone | Patient sign-up: account + profile + consent in one step, returns a token |
+| `GET/PATCH /api/patients/me` | patient | Own profile |
+| `GET/POST /api/patients/me/consents` | patient | Own consent history / grant or withdraw |
+| `POST /api/patients` | staff | Register a walk-in patient (no login account) |
+| `GET /api/patients?q=` | staff | Search by name or phone |
+| `GET/PATCH /api/patients/{id}` | staff | View (audited) / correct a patient |
+| `GET/POST /api/patients/{id}/consents` | staff | Consent history / record consent on the patient's behalf |
+
+**Consent:** the wording lives in `app/core/consent.py` and is a **draft that
+must be reviewed by the hospital's legal, privacy and clinical teams**. Each
+consent record stores the version the patient saw; consent history is
+append-only (withdrawal adds a new row). Changing the wording means bumping
+`CONSENT_VERSION`.
+
+**Who sees patient records (for now):** front-desk staff only. Doctors will get
+access to patients assigned to them once intake and queue features exist;
+administrators manage accounts, not clinical records.
 
 How login works: the server returns a random token valid for
 `SESSION_TTL_MINUTES` (8 hours by default). Send it as

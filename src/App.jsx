@@ -36,6 +36,20 @@ import {
   Sparkles,
   Headphones,
 } from "lucide-react";
+import {
+  login as apiLogin,
+  logout as apiLogout,
+  registerPatient,
+  getConsent,
+  LANGUAGE_CODES,
+  GENDER_CODES,
+} from "./services/auth.js";
+const ROLE_LABELS = {
+  patient: "Patient",
+  doctor: "Doctor",
+  staff: "Staff",
+  admin: "Administrator",
+};
 const patients0 = [
   [
     "#42",
@@ -249,7 +263,11 @@ export default function App() {
     [editing, Editing] = useState(false),
     [editName, EN] = useState("Rohan Das"),
     [editStatus, ES] = useState("Waiting"),
-    [note, Note] = useState("");
+    [note, Note] = useState(""),
+    [user, SetUser] = useState(null), // logged-in user from the backend
+    [busy, Busy] = useState(false), // a login/sign-up request is in flight
+    [agreed, Agreed] = useState(false), // sign-up consent checkbox
+    [consentDoc, ConsentDoc] = useState(null); // consent text from the backend
   const notify = (x) => {
     T(x);
     setTimeout(() => T(""), 3000);
@@ -332,11 +350,59 @@ export default function App() {
       ),
     [patients, query, filter],
   );
-  const login = () => {
+  const login = async () => {
     if (!email.trim() || !password.trim())
       return notify("Enter your email/mobile number and password.");
-    go(role === "Patient" ? "dashboard" : "staff");
-    notify("Logged in successfully (demo).");
+    if (busy) return;
+    Busy(true);
+    try {
+      // The backend decides the role; the role buttons are only a hint.
+      const u = await apiLogin(email, password);
+      SetUser(u);
+      P("");
+      go(u.role === "patient" ? "dashboard" : "staff");
+      const label = ROLE_LABELS[u.role] || u.role;
+      notify(
+        label === role
+          ? `Welcome, ${u.full_name}.`
+          : `Logged in as ${label}: ${u.full_name}.`,
+      );
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      Busy(false);
+    }
+  };
+  // Forget everything a previous person typed (important on a shared kiosk).
+  const clearPersonalForms = () => {
+    N("");
+    M("");
+    D("");
+    G("");
+    P("");
+    Agreed(false);
+    ConsentDoc(null);
+  };
+  const doLogout = async () => {
+    try {
+      await apiLogout();
+    } catch {
+      // The token is already forgotten locally; nothing else to do.
+    }
+    SetUser(null);
+    E("");
+    clearPersonalForms();
+    go("home");
+    notify("You have been logged out.");
+  };
+  const openConsent = async () => {
+    ConsentDoc(null);
+    Modal("consent");
+    try {
+      ConsentDoc(await getConsent(LANGUAGE_CODES[pref] || "en"));
+    } catch (err) {
+      ConsentDoc({ error: err.message });
+    }
   };
   const send = () => {
     if (!message.trim()) return;
@@ -615,13 +681,16 @@ export default function App() {
             <div className="forgot">
               <button onClick={() => Modal("forgot")}>Forgot Password?</button>
             </div>
-            <Btn onClick={login}>Log in</Btn>
+            <Btn onClick={login} disabled={busy}>
+              {busy ? "Logging in..." : "Log in"}
+            </Btn>
             <p className="switch">
               Don't have an account?{" "}
               <button onClick={() => go("signup")}>Sign up</button>
             </p>
             <small className="demo-note">
-              Demo only · Any non-empty credentials will work
+              Log in with your HealthSpeak account. Synthetic demo accounts
+              for local testing are listed in backend/README.md.
             </small>
           </div>
         </Auth>
@@ -630,14 +699,46 @@ export default function App() {
         <Auth go={go}>
           <form
             className="auth-form signup"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              if (!name || !mobile || !dob || !gender || password.length < 6)
+              if (!name || !mobile || !dob || !gender || password.length < 8)
                 return notify(
-                  "Complete all fields. Password needs at least 6 characters.",
+                  "Complete all fields. Password needs at least 8 characters.",
                 );
-              go("dashboard");
-              notify("Account created successfully (demo).");
+              if (!agreed)
+                return notify("Please read and accept the consent statement.");
+              if (busy) return;
+              Busy(true);
+              try {
+                const lang = LANGUAGE_CODES[pref] || "en";
+                // Record the exact consent version the patient was shown.
+                const consent =
+                  consentDoc && consentDoc.version
+                    ? consentDoc
+                    : await getConsent(lang);
+                const data = await registerPatient({
+                  full_name: name,
+                  phone: mobile,
+                  date_of_birth: dob,
+                  gender: GENDER_CODES[gender],
+                  password,
+                  ui_language: lang,
+                  preferred_language: lang,
+                  consent: {
+                    version: consent.version,
+                    granted: true,
+                    language: consent.language || lang,
+                  },
+                });
+                SetUser(data.user);
+                clearPersonalForms();
+                go("dashboard");
+                notify("Account created successfully.");
+              } catch (err) {
+                notify(err.message);
+              } finally {
+                Busy(false);
+              }
             }}
           >
             <button type="button" className="back" onClick={() => go("home")}>
@@ -649,17 +750,9 @@ export default function App() {
             <label className="field">
               <span>Preferred Language (AI Voice & Text)</span>
               <select value={pref} onChange={(e) => Pref(e.target.value)}>
-                {[
-                  "Hindi",
-                  "English",
-                  "Urdu",
-                  "Dogri",
-                  "Punjabi",
-                  "Bengali",
-                  "Tamil",
-                  "Telugu",
-                ].map((x) => (
-                  <option>{x}</option>
+                {/* The backend supports English, Hindi and Urdu. */}
+                {Object.keys(LANGUAGE_CODES).map((x) => (
+                  <option key={x}>{x}</option>
                 ))}
               </select>
             </label>
@@ -705,16 +798,26 @@ export default function App() {
                 type="password"
                 value={password}
                 onChange={(e) => P(e.target.value)}
-                minLength="6"
+                minLength="8"
                 required
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
               />
             </label>
             <label className="check">
-              <input type="checkbox" required /> I agree to the Terms &
-              Conditions
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => Agreed(e.target.checked)}
+                required
+              />{" "}
+              I have read and agree to the{" "}
+              <button type="button" className="link" onClick={openConsent}>
+                consent statement
+              </button>
             </label>
-            <Btn type="submit">Create Account</Btn>
+            <Btn type="submit" disabled={busy}>
+              {busy ? "Creating account..." : "Create Account"}
+            </Btn>
             <p className="switch">
               Already have an account?{" "}
               <button type="button" onClick={() => go("login")}>
@@ -915,6 +1018,8 @@ export default function App() {
           setLanguage={L}
           setIndex={RI}
           notify={notify}
+          userName={user && user.full_name}
+          onLogout={doLogout}
         />
       )}
       {page === "summary" && (
@@ -990,6 +1095,8 @@ export default function App() {
             go("workspace");
           }}
           notify={notify}
+          userName={user && user.full_name}
+          onLogout={doLogout}
         />
       )}
       {page === "workspace" && (
@@ -1031,6 +1138,36 @@ export default function App() {
           >
             Send reset instructions
           </Btn>
+        </ModalBox>
+      )}
+      {modal === "consent" && (
+        <ModalBox
+          title={(consentDoc && consentDoc.title) || "Consent statement"}
+          close={() => Modal("")}
+        >
+          {!consentDoc ? (
+            <p>Loading...</p>
+          ) : consentDoc.error ? (
+            <p>{consentDoc.error}</p>
+          ) : (
+            <>
+              <p dir="auto">{consentDoc.text}</p>
+              <p className="demo-note">
+                Version {consentDoc.version}
+                {consentDoc.is_draft
+                  ? " · Draft wording pending hospital review"
+                  : ""}
+              </p>
+              <Btn
+                onClick={() => {
+                  Agreed(true);
+                  Modal("");
+                }}
+              >
+                I agree
+              </Btn>
+            </>
+          )}
         </ModalBox>
       )}
       {modal === "endchat" && (
@@ -1118,7 +1255,15 @@ function Auth({ children, go }) {
     </div>
   );
 }
-function PatientDashboard({ go, language, setLanguage, setIndex, notify }) {
+function PatientDashboard({
+  go,
+  language,
+  setLanguage,
+  setIndex,
+  notify,
+  userName,
+  onLogout,
+}) {
   return (
     <div className="patient-layout">
       <aside className="patient-sidebar">
@@ -1146,6 +1291,9 @@ function PatientDashboard({ go, language, setLanguage, setIndex, notify }) {
           >
             <History /> Past History
           </button>
+          <button onClick={onLogout}>
+            <LogOut /> Log out
+          </button>
         </nav>
         <label className="language">
           <Languages />
@@ -1164,7 +1312,9 @@ function PatientDashboard({ go, language, setLanguage, setIndex, notify }) {
         <header className="dash-head">
           <div>
             <span className="eyebrow">PATIENT DASHBOARD</span>
-            <h2>Welcome to HealthSpeak AI</h2>
+            <h2>
+              {userName ? `Welcome, ${userName}` : "Welcome to HealthSpeak AI"}
+            </h2>
             <p>How are you feeling today?</p>
           </div>
           <button className="user-chip" onClick={()=>notify('Patient demo account')}>
@@ -1280,6 +1430,8 @@ function Staff({
   go,
   choose,
   notify,
+  userName,
+  onLogout,
 }) {
   return (
     <div className="staff-layout">
@@ -1309,7 +1461,7 @@ function Staff({
             <b>Reception · Rahul</b>
             <small>Staff workspace</small>
           </div>
-          <button onClick={() => go("home")}>
+          <button onClick={onLogout} title="Log out" aria-label="Log out">
             <LogOut />
           </button>
         </div>
@@ -1318,7 +1470,7 @@ function Staff({
         <header className="dash-head">
           <div>
             <span className="eyebrow">WEDNESDAY, 18 NOVEMBER 2026</span>
-            <h2>Good morning, Rahul</h2>
+            <h2>Good morning, {userName || "Rahul"}</h2>
             <p>Here’s your daily overview. Let's make care connected.</p>
           </div>
           <span className="user-chip">RK</span>
