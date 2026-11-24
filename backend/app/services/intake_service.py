@@ -28,6 +28,8 @@ from app.database.models import (
     User,
 )
 from app.schemas.intake import (
+    AnalysisOut,
+    DepartmentRef,
     IntakeList,
     IntakeListItem,
     IntakePatientSummary,
@@ -36,7 +38,13 @@ from app.schemas.intake import (
     MessageCreate,
     MessageOut,
 )
-from app.services import audit_service, patient_service, translation_service
+from app.services import (
+    analysis_service,
+    audit_service,
+    department_service,
+    patient_service,
+    translation_service,
+)
 
 MAX_PATIENT_MESSAGES = 50
 
@@ -78,6 +86,10 @@ class AlreadyConfirmed(Exception):
 
 class InvalidTranscription(Exception):
     """transcription_id is unknown, from another conversation, failed, or already used."""
+
+
+class UnknownDepartment(Exception):
+    """Confirmation needs an existing, active department."""
 
 
 class EnglishTextNeeded(Exception):
@@ -182,7 +194,9 @@ def submit(db: Session, conv: Conversation, user: User) -> IntakeRecord:
     # Translate Hindi/Urdu now if the local model is available. Failure never loses
     # the submission: the intake stays saved with a visible translation status.
     if translation_service.needs_translation(intake):
-        translation_service.translate_intake(db, intake, user)
+        translation_service.translate_intake(db, intake, user)  # analyses on success
+    else:
+        analysis_service.analyse_if_possible(db, intake, user)
     return intake
 
 
@@ -206,16 +220,18 @@ def list_for_staff(db: Session, *, review_status: ReviewStatus | None, limit: in
         count = count.where(IntakeRecord.review_status == review_status.value)
     # Oldest first: patients who have waited longest are reviewed first.
     rows = db.execute(stmt.order_by(IntakeRecord.created_at, IntakeRecord.id).limit(limit).offset(offset))
-    items = [
-        IntakeListItem(
+    items = []
+    for i, name in rows:
+        a = analysis_service.latest(i)
+        items.append(IntakeListItem(
             id=i.id, patient_id=i.patient_id, patient_name=name,
             original_language=i.original_language,
             snippet=(i.original_text[:140] + "…") if len(i.original_text) > 140 else i.original_text,
             translation_status=i.translation_status, review_status=i.review_status,
             created_at=i.created_at,
-        )
-        for i, name in rows
-    ]
+            suggested_department=(a.suggestion.get("department_name") if a else None),
+            needs_attention=bool(a and a.needs_attention),
+        ))
     return IntakeList(items=items, total=db.scalar(count) or 0)
 
 
@@ -237,6 +253,9 @@ def staff_view(db: Session, intake: IntakeRecord, staff: User) -> IntakeStaffVie
         created_at=intake.created_at, updated_at=intake.updated_at,
         messages=[MessageOut.model_validate(m) for m in intake.conversation.messages],
         revisions=[IntakeRevisionOut.model_validate(r) for r in intake.revisions],
+        analysis=(AnalysisOut.model_validate(a) if (a := analysis_service.latest(intake)) else None),
+        confirmed_department=(DepartmentRef.model_validate(intake.confirmed_department)
+                              if intake.confirmed_department else None),
     )
 
 
@@ -259,9 +278,12 @@ def correct(db: Session, intake: IntakeRecord, staff: User, final_text: str,
 
 
 def confirm(db: Session, intake: IntakeRecord, staff: User, final_text: str | None,
-            reason: str | None) -> IntakeRecord:
+            reason: str | None, department_id: uuid.UUID) -> IntakeRecord:
     if intake.review_status == ReviewStatus.CONFIRMED.value:
         raise AlreadyConfirmed
+    department = department_service.get_active(db, department_id)
+    if department is None:
+        raise UnknownDepartment
     if final_text is not None and final_text != intake.final_text:
         _revise(db, intake, "final_text", intake.final_text, final_text, reason, staff)
         intake.final_text = final_text
@@ -270,13 +292,16 @@ def confirm(db: Session, intake: IntakeRecord, staff: User, final_text: str | No
             raise EnglishTextNeeded
         _revise(db, intake, "final_text", None, intake.english_text, "accepted as submitted", staff)
         intake.final_text = intake.english_text
+    old_dept = intake.confirmed_department.name if intake.confirmed_department else None
+    _revise(db, intake, "department", old_dept, department.name, reason, staff)
+    intake.confirmed_department_id = department.id
     _revise(db, intake, "review_status", intake.review_status, ReviewStatus.CONFIRMED.value,
             reason, staff)
     intake.review_status = ReviewStatus.CONFIRMED.value
     intake.reviewed_by_user_id = staff.id
     intake.reviewed_at = _now()
     audit_service.record(db, "intake.confirmed", actor_user_id=staff.id, target_type="intake",
-                         target_id=intake.id)
+                         target_id=intake.id, details={"department": department.code})
     db.commit()
     db.refresh(intake)
     return intake

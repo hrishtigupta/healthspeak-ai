@@ -49,11 +49,20 @@ export const correctIntake = (id, finalText, reason) =>
     body: { final_text: finalText, reason: reason || null },
   });
 
-export const confirmIntake = (id, finalText, reason) =>
+export const confirmIntake = (id, departmentId, finalText, reason) =>
   api(`/intakes/${id}/confirm`, {
     method: "POST",
-    body: { final_text: finalText || null, reason: reason || null },
+    body: {
+      department_id: departmentId,
+      final_text: finalText || null,
+      reason: reason || null,
+    },
   });
+
+export const analyseIntake = (id, source = "final_text") =>
+  api(`/intakes/${id}/analyse`, { method: "POST", body: { source } });
+
+export const listDepartments = () => api("/departments");
 
 // ----- display helpers -----
 export const LANGUAGE_NAMES = { en: "English", hi: "Hindi", ur: "Urdu" };

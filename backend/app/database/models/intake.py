@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -23,6 +24,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import (
@@ -37,6 +39,7 @@ from app.core.enums import (
 )
 from app.database.base import Base
 from app.database.models.mixins import Timestamps, UuidPk
+from app.database.models.department import Department  # noqa: F401 (relationship target)
 from app.database.models.patient import Patient
 
 
@@ -120,12 +123,60 @@ class IntakeRecord(UuidPk, Timestamps, Base):
     translation_model: Mapped[str | None] = mapped_column(String(200))
     translated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     translation_error: Mapped[str | None] = mapped_column(String(200))
+    # Department chosen by staff at confirmation (the AI suggestion is only advice).
+    confirmed_department_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("departments.id", ondelete="RESTRICT")
+    )
 
     patient: Mapped[Patient] = relationship()
     conversation: Mapped[Conversation] = relationship()
+    confirmed_department: Mapped["Department | None"] = relationship(lazy="joined")
+    analyses: Mapped[list["IntakeAnalysis"]] = relationship(
+        back_populates="intake", order_by="IntakeAnalysis.created_at", lazy="selectin"
+    )
+
+    @property
+    def confirmed_department_name(self) -> str | None:
+        return self.confirmed_department.name if self.confirmed_department else None
     revisions: Mapped[list["IntakeRevision"]] = relationship(
         back_populates="intake", order_by="IntakeRevision.created_at", lazy="selectin"
     )
+
+
+class IntakeAnalysis(UuidPk, Base):
+    """One run of the rule-based extraction + department suggestion (append-only).
+
+    Always UNCONFIRMED machine output; kept for traceability (source text hash,
+    engine/lexicon/ruleset versions).
+    """
+
+    __tablename__ = "intake_analyses"
+    __table_args__ = (
+        CheckConstraint("source IN ('english_text', 'final_text')", name="source_valid"),
+    )
+
+    intake_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("intake_records.id", ondelete="RESTRICT"), index=True
+    )
+    source: Mapped[str] = mapped_column(String(16))
+    source_sha256: Mapped[str] = mapped_column(String(64))
+    extraction: Mapped[dict] = mapped_column(JSONB)
+    summary: Mapped[str] = mapped_column(Text)
+    suggestion: Mapped[dict] = mapped_column(JSONB)
+    suggested_department_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("departments.id", ondelete="SET NULL")
+    )
+    needs_attention: Mapped[bool] = mapped_column(Boolean, default=False)
+    engine_version: Mapped[str] = mapped_column(String(32))
+    ruleset_version: Mapped[str] = mapped_column(String(32))
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False
+    )
+
+    intake: Mapped[IntakeRecord] = relationship(back_populates="analyses")
 
 
 class AudioTranscription(UuidPk, Base):

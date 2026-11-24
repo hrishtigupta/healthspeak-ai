@@ -2,9 +2,11 @@
 
 from app.database.models.audit_event import AuditEvent
 from app.database.models.auth_session import AuthSession
+from app.database.models.department import Department, RoutingRule
 from app.database.models.intake import (
     AudioTranscription,
     Conversation,
+    IntakeAnalysis,
     IntakeRecord,
     IntakeRevision,
     Message,
@@ -13,6 +15,7 @@ from app.database.models.patient import ConsentRecord, Patient
 from app.database.models.user import User
 
 __all__ = [
-    "AudioTranscription", "AuditEvent", "AuthSession", "ConsentRecord", "Conversation", "IntakeRecord",
+    "AudioTranscription", "AuditEvent", "AuthSession", "ConsentRecord", "Conversation", "Department",
+    "IntakeAnalysis", "IntakeRecord", "RoutingRule",
     "IntakeRevision", "Message", "Patient", "User",
 ]

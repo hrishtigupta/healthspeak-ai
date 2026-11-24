@@ -119,6 +119,33 @@ class IntakeListItem(BaseModel):
     translation_status: TranslationStatus
     review_status: ReviewStatus
     created_at: datetime
+    suggested_department: str | None = None
+    needs_attention: bool = False
+
+
+class AnalysisOut(BaseModel):
+    """Rule-based, UNCONFIRMED machine output. Every item quotes the source words."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    source: str
+    summary: str
+    extraction: dict
+    suggestion: dict
+    suggested_department_id: uuid.UUID | None
+    needs_attention: bool
+    engine_version: str
+    ruleset_version: str
+    created_at: datetime
+
+
+class DepartmentRef(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    code: str
+    name: str
 
 
 class IntakeList(BaseModel):
@@ -145,6 +172,8 @@ class IntakeStaffView(BaseModel):
     updated_at: datetime
     messages: list[MessageOut]
     revisions: list[IntakeRevisionOut]
+    analysis: AnalysisOut | None
+    confirmed_department: DepartmentRef | None
 
 
 class IntakePatientView(BaseModel):
@@ -158,6 +187,8 @@ class IntakePatientView(BaseModel):
     review_status: ReviewStatus
     created_at: datetime
     reviewed_at: datetime | None
+    # Only the department STAFF confirmed is shown to patients, never the AI suggestion.
+    confirmed_department_name: str | None = None
 
 
 class IntakeCorrection(BaseModel):
@@ -175,6 +206,8 @@ class IntakeCorrection(BaseModel):
 class IntakeConfirm(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Staff choose the department (the AI suggestion is only advice).
+    department_id: uuid.UUID
     # Optional last edit made at the moment of confirming.
     final_text: str | None = Field(default=None, max_length=MAX_FINAL_TEXT_CHARS)
     reason: str | None = Field(default=None, max_length=500)

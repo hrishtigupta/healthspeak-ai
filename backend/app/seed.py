@@ -15,7 +15,7 @@ from app.core.consent import CONSENT_VERSION
 from app.core.enums import ConsentMethod, ConsentType, Gender, Role, UiLanguage
 from app.database.models import ConsentRecord, Patient, User
 from app.database.session import SessionLocal
-from app.services import user_service
+from app.services import department_service, user_service
 
 # Synthetic profile for the demo patient account, so the intake flow can be tried.
 DEMO_PATIENT_PROFILE = {"date_of_birth": date(1990, 1, 15), "gender": Gender.FEMALE}
@@ -69,6 +69,9 @@ def main() -> int:
             print(f"  created  {role.value:<8} {email}")
         if _ensure_demo_patient_profile(db, "patient@example.com"):
             print("  created  patient profile + consent for patient@example.com")
+        rules = department_service.load_defaults(db)
+        if rules:
+            print(f"  created  default departments and {rules} routing rules (DRAFT - review with clinicians)")
     print(f"Done: {created} accounts created.")
     return 0
 

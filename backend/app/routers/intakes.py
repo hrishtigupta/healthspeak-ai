@@ -7,8 +7,10 @@ Access (this phase):
 """
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.ai.audio import AudioRejected
@@ -29,7 +31,13 @@ from app.schemas.intake import (
     MessageOut,
     TranscriptionOut,
 )
-from app.services import intake_service, patient_service, speech_service, translation_service
+from app.services import (
+    analysis_service,
+    intake_service,
+    patient_service,
+    speech_service,
+    translation_service,
+)
 
 router = APIRouter(tags=["intake"])
 
@@ -47,6 +55,8 @@ _ERRORS = {
     intake_service.AlreadyConfirmed: (status.HTTP_409_CONFLICT, "This intake is already confirmed."),
     intake_service.InvalidTranscription: (status.HTTP_422_UNPROCESSABLE_CONTENT,
                                           "That voice transcription cannot be used for this message."),
+    intake_service.UnknownDepartment: (status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                       "Choose an active department."),
     intake_service.EnglishTextNeeded: (status.HTTP_422_UNPROCESSABLE_CONTENT,
                                        "Enter the English version of the patient's words before confirming."),
 }
@@ -186,12 +196,33 @@ def retry_translation(intake_id: uuid.UUID, staff: User = Depends(staff_only),
     return intake_service.staff_view(db, intake, staff)
 
 
+class AnalyseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["english_text", "final_text"] = "final_text"
+
+
+@router.post("/intakes/{intake_id}/analyse", response_model=IntakeStaffView)
+def analyse_intake(intake_id: uuid.UUID, body: AnalyseRequest, staff: User = Depends(staff_only),
+                   db: Session = Depends(get_db)) -> IntakeStaffView:
+    """Re-run the rule-based extraction (e.g. on the staff-reviewed text)."""
+    intake = _intake_or_404(intake_id, db)
+    try:
+        analysis_service.analyse(db, intake, source=body.source, actor=staff)
+    except analysis_service.NoTextToAnalyse:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "There is no English text to analyse yet.") from None
+    db.refresh(intake)
+    return intake_service.staff_view(db, intake, staff)
+
+
 @router.post("/intakes/{intake_id}/confirm", response_model=IntakeStaffView)
 def confirm_intake(intake_id: uuid.UUID, body: IntakeConfirm, staff: User = Depends(staff_only),
                    db: Session = Depends(get_db)) -> IntakeStaffView:
     try:
         intake = intake_service.confirm(db, _intake_or_404(intake_id, db), staff,
-                                        body.final_text, body.reason)
-    except (intake_service.AlreadyConfirmed, intake_service.EnglishTextNeeded) as e:
+                                        body.final_text, body.reason, body.department_id)
+    except (intake_service.AlreadyConfirmed, intake_service.EnglishTextNeeded,
+            intake_service.UnknownDepartment) as e:
         _fail(e)
     return intake_service.staff_view(db, intake, staff)

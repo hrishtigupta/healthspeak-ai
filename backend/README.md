@@ -9,6 +9,7 @@ FastAPI + PostgreSQL backend for HealthSpeak AI.
 | 3 — Patient profiles, consent history; React login + sign-up connected | done |
 | 4 — Conversations, intake submission, staff review/correction/confirmation | done |
 | 5 — Local speech recognition (working) and translation (code ready, model needs your HF login) | partly |
+| 6 — Structured intake, traceable summary, configurable department suggestion | done |
 
 ## What runs where
 
@@ -246,6 +247,40 @@ synthetic sample was word-for-word correct.
 **GPU (optional, faster):** this PC has an NVIDIA RTX 3070. Installing the CUDA
 build of PyTorch (~2.5 GB download) lets `AI_DEVICE=auto` use it:
 `..\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126`
+
+## Structured intake and department suggestion (Phase 6)
+
+When an intake has English text (typed in English, or after translation), the
+server runs a **transparent rule-based analysis** — no generative AI model:
+
+- `app/ai/lexicon.py` — approved symptom vocabulary (DRAFT, needs clinical
+  review). Only phrases that literally appear are extracted; each item keeps the
+  exact source words and their position.
+- `app/ai/text_processing.py` — reported vs. **denied** symptoms ("no fever"),
+  time and severity words, uncertainty, medicine/allergy sentences (verbatim),
+  and a list of what was **not mentioned**. The summary quotes every item and
+  says "Not a diagnosis. Requires staff review."
+- `app/ai/department_classification.py` — scores departments with routing rules
+  from the database. Ties are reported as *ambiguous* (staff must choose); no
+  match falls back to the default department, labelled as such. "Attention"
+  rules raise a visible flag for words hospital policy marks for prompt staff
+  attention (e.g. "chest pain") — a flag, not a triage decision.
+- Each run is stored in `intake_analyses` with the source text hash, engine,
+  vocabulary and ruleset versions (append-only).
+
+Staff must **choose the department when confirming** (the suggestion is only
+pre-selected). Patients only ever see the department staff confirmed.
+
+Default departments/rules (`app/core/default_routing.py`, DRAFT) are created by
+`python -m app.seed`. Administrators can change them without code:
+
+| Method & path | Who | Purpose |
+|---|---|---|
+| `GET /api/departments` | staff, doctor, admin | Active departments |
+| `GET/POST /api/admin/departments`, `PATCH /api/admin/departments/{id}` | admin | Manage departments (only one default) |
+| `GET/POST /api/admin/routing-rules`, `PATCH /api/admin/routing-rules/{id}` | admin | Manage rules (`route`: phrase → department, weight 1–10; `attention`: flag phrase) |
+| `POST /api/intakes/{id}/analyse` | staff | Re-run analysis (`{"source": "final_text"}` uses the staff-reviewed text) |
+| `POST /api/intakes/{id}/confirm` | staff | Now requires `department_id` |
 
 ## Tests
 

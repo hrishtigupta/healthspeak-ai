@@ -152,7 +152,7 @@ def test_only_patients_open_conversations(client, auth_headers, role):
 
 # ---------- staff review ----------
 
-def test_staff_lists_views_corrects_and_confirms(client, patient, auth_headers, db):
+def test_staff_lists_views_corrects_and_confirms(client, patient, auth_headers, db, departments):
     h, pid = patient()
     iid = _submit(client, h, (HINDI, "hi", "voice_browser"))
     s = auth_headers(Role.STAFF)
@@ -164,8 +164,9 @@ def test_staff_lists_views_corrects_and_confirms(client, patient, auth_headers, 
     assert view["original_text"] == HINDI and view["translation_status"] == "pending"
     assert view["patient"]["id"] == pid and view["messages"][0]["content"] == HINDI
 
+    gm = {"department_id": departments["general_medicine"]}
     # Cannot confirm a Hindi intake until someone provides English text.
-    assert client.post(f"/api/intakes/{iid}/confirm", headers=s, json={}).status_code == 422
+    assert client.post(f"/api/intakes/{iid}/confirm", headers=s, json=gm).status_code == 422
 
     english = "High fever and headache since yesterday."
     r = client.patch(f"/api/intakes/{iid}", headers=s,
@@ -174,7 +175,8 @@ def test_staff_lists_views_corrects_and_confirms(client, patient, auth_headers, 
     r = client.patch(f"/api/intakes/{iid}", headers=s, json={"final_text": english + " Weakness."})
     assert r.status_code == 200
 
-    r = client.post(f"/api/intakes/{iid}/confirm", headers=s, json={})
+    assert client.post(f"/api/intakes/{iid}/confirm", headers=s, json={}).status_code == 422  # no dept
+    r = client.post(f"/api/intakes/{iid}/confirm", headers=s, json=gm)
     assert r.status_code == 200
     body = r.json()
     assert body["review_status"] == "confirmed" and body["reviewed_at"]
@@ -183,10 +185,13 @@ def test_staff_lists_views_corrects_and_confirms(client, patient, auth_headers, 
     assert revs == [
         ("final_text", None, english),
         ("final_text", english, english + " Weakness."),
+        ("department", None, "General Medicine"),
         ("review_status", "pending_review", "confirmed"),
     ]
-    assert client.post(f"/api/intakes/{iid}/confirm", headers=s, json={}).status_code == 409
-    assert client.get("/api/patients/me/intakes", headers=h).json()[0]["review_status"] == "confirmed"
+    assert body["confirmed_department"]["code"] == "general_medicine"
+    assert client.post(f"/api/intakes/{iid}/confirm", headers=s, json=gm).status_code == 409
+    mine = client.get("/api/patients/me/intakes", headers=h).json()[0]
+    assert mine["review_status"] == "confirmed" and mine["confirmed_department_name"] == "General Medicine"
 
     actions = set(db.scalars(select(AuditEvent.action)).all())
     assert {"intake.submitted", "intake.viewed", "intake.corrected", "intake.confirmed"} <= actions
@@ -195,21 +200,23 @@ def test_staff_lists_views_corrects_and_confirms(client, patient, auth_headers, 
     assert "बुखार" not in blob and "fever" not in blob
 
 
-def test_confirm_english_intake_accepts_original(client, patient, auth_headers, db):
+def test_confirm_english_intake_accepts_original(client, patient, auth_headers, db, departments):
     h, _ = patient()
     iid = _submit(client, h, ("Mild rash on arm.", "en", "text"))
     s = auth_headers(Role.STAFF)
-    body = client.post(f"/api/intakes/{iid}/confirm", headers=s, json={}).json()
+    body = client.post(f"/api/intakes/{iid}/confirm", headers=s,
+                       json={"department_id": departments["dermatology"]}).json()
     assert body["final_text"] == "Mild rash on arm." and body["english_text"] == "Mild rash on arm."
-    assert len(db.scalars(select(IntakeRevision)).all()) == 2
+    assert len(db.scalars(select(IntakeRevision)).all()) == 3
 
 
-def test_confirm_with_final_edit(client, patient, auth_headers):
+def test_confirm_with_final_edit(client, patient, auth_headers, departments):
     h, _ = patient()
     iid = _submit(client, h, ("rash arm", "en", "text"))
     s = auth_headers(Role.STAFF)
     body = client.post(f"/api/intakes/{iid}/confirm", headers=s,
-                       json={"final_text": "Rash on the arm.", "reason": "tidied"}).json()
+                       json={"final_text": "Rash on the arm.", "reason": "tidied",
+                             "department_id": departments["dermatology"]}).json()
     assert body["final_text"] == "Rash on the arm." and body["original_text"] == "rash arm"
 
 
@@ -221,16 +228,18 @@ def test_only_staff_review_intakes(client, patient, auth_headers, role):
     assert client.get("/api/intakes", headers=other).status_code == 403
     assert client.get(f"/api/intakes/{iid}", headers=other).status_code == 403
     assert client.patch(f"/api/intakes/{iid}", headers=other, json={"final_text": "x"}).status_code == 403
-    assert client.post(f"/api/intakes/{iid}/confirm", headers=other, json={}).status_code == 403
+    assert client.post(f"/api/intakes/{iid}/confirm", headers=other,
+                       json={"department_id": "00000000-0000-0000-0000-000000000000"}).status_code == 403
 
 
-def test_list_is_oldest_first_and_filterable(client, patient, auth_headers):
+def test_list_is_oldest_first_and_filterable(client, patient, auth_headers, departments):
     h1, _ = patient("9811100011", "Synthetic First")
     h2, _ = patient("9811100012", "Synthetic Second")
     first = _submit(client, h1, ("first", "en", "text"))
     _submit(client, h2, ("second", "en", "text"))
     s = auth_headers(Role.STAFF)
-    client.post(f"/api/intakes/{first}/confirm", headers=s, json={})
+    client.post(f"/api/intakes/{first}/confirm", headers=s,
+                json={"department_id": departments["general_medicine"]})
     pending = client.get("/api/intakes", params={"review_status": "pending_review"}, headers=s).json()
     assert [i["patient_name"] for i in pending["items"]] == ["Synthetic Second"]
     everything = client.get("/api/intakes", headers=s).json()

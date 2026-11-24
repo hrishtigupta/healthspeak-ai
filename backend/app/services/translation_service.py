@@ -58,4 +58,8 @@ def translate_intake(db: Session, intake: IntakeRecord, actor: User | None) -> I
                          target_type="intake", target_id=intake.id, details={"model": model})
     db.commit()
     db.refresh(intake)
+    from app.services import analysis_service  # local import: avoids an import cycle
+
+    analysis_service.analyse_if_possible(db, intake, actor)
+    db.refresh(intake)
     return intake

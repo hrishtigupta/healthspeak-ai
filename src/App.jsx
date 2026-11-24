@@ -55,6 +55,8 @@ import {
   confirmIntake,
   transcribeAudio,
   retryTranslation,
+  analyseIntake,
+  listDepartments,
   LANGUAGE_NAMES,
   REVIEW_LABELS,
   TRANSLATION_LABELS,
@@ -259,7 +261,8 @@ export default function App() {
     [staffIntakes, StaffIntakes] = useState(null), // intakes awaiting review
     [reviewIntake, ReviewIntake] = useState(null), // intake open in the review screen
     [transcribing, Transcribing] = useState(false), // server is transcribing a recording
-    [transcriptionId, TranscriptionId] = useState(null); // transcription shown in the voice box
+    [transcriptionId, TranscriptionId] = useState(null), // transcription shown in the voice box
+    [departments, Departments] = useState([]); // active departments (staff confirmation)
   const notify = (x) => {
     T(x);
     setTimeout(() => T(""), 3000);
@@ -498,10 +501,24 @@ export default function App() {
   }, [page, user]);
   const openReview = async (id) => {
     try {
-      ReviewIntake(await getIntake(id));
+      const [intake, depts] = await Promise.all([getIntake(id), listDepartments()]);
+      Departments(depts);
+      ReviewIntake(intake);
       go("intake");
     } catch (err) {
       notify(err.message);
+    }
+  };
+  const reanalyse = async () => {
+    if (!reviewIntake || busy) return;
+    Busy(true);
+    try {
+      ReviewIntake(await analyseIntake(reviewIntake.id, "final_text"));
+      notify("Summary re-created from the staff-reviewed text.");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      Busy(false);
     }
   };
   const retryReviewTranslation = async () => {
@@ -521,12 +538,16 @@ export default function App() {
       Busy(false);
     }
   };
-  const saveReview = async (finalText, reason, andConfirm) => {
+  const saveReview = async (finalText, reason, andConfirm, departmentId) => {
     if (!reviewIntake || busy) return;
+    if (andConfirm && !departmentId) {
+      notify("Choose the department before confirming.");
+      return;
+    }
     Busy(true);
     try {
       const updated = andConfirm
-        ? await confirmIntake(reviewIntake.id, finalText, reason)
+        ? await confirmIntake(reviewIntake.id, departmentId, finalText, reason)
         : await correctIntake(reviewIntake.id, finalText, reason);
       ReviewIntake(updated);
       notify(andConfirm ? "Intake confirmed." : "Correction saved. The previous text is kept in the history.");
@@ -1171,7 +1192,10 @@ export default function App() {
                 />
                 <Info
                   label="Department"
-                  value="Assigned by staff after review"
+                  value={
+                    summaryIntake.confirmed_department_name ||
+                    "Assigned by staff after review"
+                  }
                 />
               </div>
               <p className="disclaimer">
@@ -1213,6 +1237,8 @@ export default function App() {
           go={go}
           onSave={saveReview}
           onRetryTranslation={retryReviewTranslation}
+          onReanalyse={reanalyse}
+          departments={departments}
         />
       )}
       {page === "workspace" && (
@@ -1519,7 +1545,10 @@ function PatientDashboard({
                 <Info label="Submitted" value={formatDate(latest.created_at)} />
                 <Info
                   label="Department"
-                  value="Assigned by staff after review"
+                  value={
+                    latest.confirmed_department_name ||
+                    "Assigned by staff after review"
+                  }
                 />
               </>
             ) : (
@@ -1639,7 +1668,19 @@ function Staff({
                   <b>{i.patient_name}</b>
                   <span>{LANGUAGE_NAMES[i.original_language]}</span>
                   <span dir="auto">{i.snippet}</span>
-                  <span className="status wait">Unreviewed</span>
+                  <span>
+                    <span className="status wait">Unreviewed</span>
+                    {i.needs_attention && (
+                      <span className="status attention" title="Mentions words marked for prompt staff attention">
+                        Attention
+                      </span>
+                    )}
+                    {i.suggested_department && (
+                      <small className="suggestion">
+                        AI suggests: {i.suggested_department}
+                      </small>
+                    )}
+                  </span>
                   <button className="link" onClick={() => onReview(i.id)}>
                     Review <ArrowRight />
                   </button>
@@ -1907,11 +1948,26 @@ function Workspace({
     </div>
   );
 }
-function IntakeReview({ intake, busy, go, onSave, onRetryTranslation }) {
+function IntakeReview({
+  intake,
+  busy,
+  go,
+  onSave,
+  onRetryTranslation,
+  onReanalyse,
+  departments,
+}) {
   const [text, SetText] = useState(
     intake.final_text || intake.english_text || "",
   );
   const [reason, SetReason] = useState("");
+  const a = intake.analysis;
+  const sug = a ? a.suggestion : null;
+  const [dept, SetDept] = useState(
+    (intake.confirmed_department && intake.confirmed_department.id) ||
+      (sug && sug.department_id) ||
+      "",
+  );
   const confirmed = intake.review_status === "confirmed";
   const p = intake.patient;
   return (
@@ -2014,14 +2070,37 @@ function IntakeReview({ intake, busy, go, onSave, onRetryTranslation }) {
                 </Btn>
                 {!confirmed && (
                   <Btn
-                    disabled={busy || !text.trim()}
-                    onClick={() => onSave(text, reason, true)}
+                    disabled={busy || !text.trim() || !dept}
+                    onClick={() => onSave(text, reason, true, dept)}
                   >
                     Confirm intake <Check />
                   </Btn>
                 )}
               </div>
             </div>
+            <div className="workspace-section">
+              <span className="eyebrow">DEPARTMENT (CHOSEN BY STAFF)</span>
+              {confirmed ? (
+                <p>
+                  <b>{intake.confirmed_department ? intake.confirmed_department.name : "—"}</b>
+                </p>
+              ) : (
+                <select
+                  className="dept-select"
+                  value={dept}
+                  onChange={(e) => SetDept(e.target.value)}
+                  aria-label="Department"
+                >
+                  <option value="">Choose a department...</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <AnalysisPanel analysis={a} busy={busy} onReanalyse={onReanalyse} hasFinal={Boolean(intake.final_text)} />
           </section>
           <aside>
             <div className="side-card">
@@ -2053,6 +2132,109 @@ function IntakeReview({ intake, busy, go, onSave, onRetryTranslation }) {
           </aside>
         </div>
       </main>
+    </div>
+  );
+}
+function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
+  if (!a) {
+    return (
+      <div className="workspace-section analysis">
+        <span className="eyebrow">AI-ASSISTED SUMMARY · UNCONFIRMED</span>
+        <p>
+          No automatic summary yet. It is created once an English version of the
+          patient's words exists.
+        </p>
+        {hasFinal && (
+          <Btn kind="outline" disabled={busy} onClick={onReanalyse}>
+            Create summary from reviewed text
+          </Btn>
+        )}
+      </div>
+    );
+  }
+  const ex = a.extraction;
+  const sug = a.suggestion;
+  const statusText = {
+    matched: `Suggests ${sug.department_name}`,
+    ambiguous: "Several departments possible — staff must choose",
+    default: `No routing rule matched — default department ${sug.department_name}`,
+    no_rules: "No routing rules configured",
+  }[sug.status];
+  return (
+    <div className="workspace-section analysis">
+      <span className="eyebrow">
+        AI-ASSISTED SUMMARY · UNCONFIRMED · FROM {a.source === "final_text" ? "STAFF-REVIEWED TEXT" : "ENGLISH TEXT"}
+      </span>
+      {sug.attention.length > 0 && (
+        <p className="attention-box">
+          <b>Prompt staff attention:</b> the patient's words include{" "}
+          {sug.attention.map((m) => `"${m.evidence}"`).join(", ")}. This is a
+          flag for staff, not a triage decision.
+        </p>
+      )}
+      <p>{a.summary}</p>
+      <div className="analysis-grid">
+        <div>
+          <small>Reported (exact words)</small>
+          {ex.reported.length ? (
+            <ul>
+              {ex.reported.map((m) => (
+                <li key={m.term}>
+                  {m.term}: <q>{m.evidence.text}</q>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>None identified</p>
+          )}
+        </div>
+        <div>
+          <small>Said they do NOT have</small>
+          {ex.denied.length ? (
+            <ul>
+              {ex.denied.map((m) => (
+                <li key={m.term}>
+                  {m.term}: <q>{m.evidence.text}</q>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>—</p>
+          )}
+        </div>
+        <div>
+          <small>Not mentioned (ask the patient)</small>
+          <ul>
+            {ex.missing.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <p>
+        <b>Department suggestion:</b> {statusText}
+        {sug.candidates.length > 0 && (
+          <>
+            {" "}
+            (because of{" "}
+            {sug.candidates
+              .flatMap((c) => c.matches.map((m) => `"${m.evidence}" → ${c.name}`))
+              .join("; ")}
+            )
+          </>
+        )}
+      </p>
+      <small>
+        Rule-based suggestion, not a diagnosis. Rules {a.ruleset_version} ·{" "}
+        {a.engine_version}
+      </small>
+      {hasFinal && (
+        <div className="actions">
+          <Btn kind="outline" disabled={busy} onClick={onReanalyse}>
+            Re-create summary from reviewed text
+          </Btn>
+        </div>
+      )}
     </div>
   );
 }

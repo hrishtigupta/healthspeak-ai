@@ -114,6 +114,18 @@ def _isolate_ai(monkeypatch, tmp_path):
 
 
 @pytest.fixture
+def departments(db) -> dict[str, str]:
+    """Load the default departments + routing rules; returns {code: id}."""
+    from sqlalchemy import select
+
+    from app.database.models import Department
+    from app.services import department_service
+
+    department_service.load_defaults(db)
+    return {d.code: str(d.id) for d in db.scalars(select(Department))}
+
+
+@pytest.fixture
 def db(session_factory) -> Iterator[Session]:
     with session_factory() as s:
         yield s
