@@ -13,6 +13,7 @@ from datetime import datetime
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -30,6 +31,7 @@ from app.core.enums import (
     InputMode,
     MessageSender,
     ReviewStatus,
+    TranscriptionStatus,
     TranslationStatus,
     sql_in_list,
 )
@@ -114,11 +116,58 @@ class IntakeRecord(UuidPk, Timestamps, Base):
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which local model produced english_text, when, and why it failed (if it did).
+    translation_model: Mapped[str | None] = mapped_column(String(200))
+    translated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    translation_error: Mapped[str | None] = mapped_column(String(200))
 
     patient: Mapped[Patient] = relationship()
     conversation: Mapped[Conversation] = relationship()
     revisions: Mapped[list["IntakeRevision"]] = relationship(
         back_populates="intake", order_by="IntakeRevision.created_at", lazy="selectin"
+    )
+
+
+class AudioTranscription(UuidPk, Base):
+    """One uploaded recording and what the local speech model made of it.
+
+    transcript_text is the raw machine output. The patient may edit it before
+    sending; the approved text is the linked message's content, so both survive.
+    The audio itself is deleted after processing unless retention is switched on.
+    """
+
+    __tablename__ = "audio_transcriptions"
+    __table_args__ = (
+        CheckConstraint(f"status IN ({sql_in_list(TranscriptionStatus)})", name="status_valid"),
+        CheckConstraint(f"language IN ({sql_in_list(ContentLanguage)})", name="language_valid"),
+    )
+
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("conversations.id", ondelete="RESTRICT"), index=True
+    )
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    language: Mapped[str] = mapped_column(String(8))  # language the patient said they spoke
+    status: Mapped[str] = mapped_column(String(16))
+    transcript_text: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(32))
+    model_id: Mapped[str | None] = mapped_column(String(200))
+    model_revision: Mapped[str | None] = mapped_column(String(64))
+    device: Mapped[str | None] = mapped_column(String(16))
+    processing_ms: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[float | None] = mapped_column(Float)
+    audio_format: Mapped[str | None] = mapped_column(String(16))
+    audio_bytes: Mapped[int | None] = mapped_column(Integer)
+    audio_sha256: Mapped[str | None] = mapped_column(String(64))
+    # Only set while the raw audio file still exists (retention switched on).
+    audio_path: Mapped[str | None] = mapped_column(String(500))
+    audio_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("messages.id", ondelete="SET NULL"), unique=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False
     )
 
 

@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import (
     ContentLanguage,
@@ -12,6 +12,7 @@ from app.core.enums import (
     InputMode,
     MessageSender,
     ReviewStatus,
+    TranscriptionStatus,
     TranslationStatus,
 )
 
@@ -32,11 +33,33 @@ class MessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
     input_mode: InputMode = InputMode.TEXT
     language: ContentLanguage = ContentLanguage.EN
+    # Required for input_mode "voice_server": the transcription the patient reviewed.
+    transcription_id: uuid.UUID | None = None
 
     @field_validator("content")
     @classmethod
     def check_content(cls, v: str) -> str:
         return _not_blank(v)
+
+    @model_validator(mode="after")
+    def check_transcription(self):
+        if (self.input_mode == InputMode.VOICE_SERVER) != (self.transcription_id is not None):
+            raise ValueError("transcription_id is required for voice_server messages and only for them.")
+        return self
+
+
+class TranscriptionOut(BaseModel):
+    """Machine transcript for the patient to review before sending."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: TranscriptionStatus
+    language: ContentLanguage
+    text: str | None = Field(validation_alias="transcript_text")
+    duration_seconds: float | None
+    model_id: str | None
+    processing_ms: int | None
 
 
 class MessageOut(BaseModel):
@@ -112,6 +135,8 @@ class IntakeStaffView(BaseModel):
     original_text: str
     english_text: str | None
     translation_status: TranslationStatus
+    translation_model: str | None
+    translation_error: str | None
     final_text: str | None
     review_status: ReviewStatus
     reviewed_by_user_id: uuid.UUID | None

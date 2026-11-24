@@ -18,7 +18,15 @@ from app.core.enums import (
     ReviewStatus,
     TranslationStatus,
 )
-from app.database.models import Conversation, IntakeRecord, IntakeRevision, Message, Patient, User
+from app.database.models import (
+    AudioTranscription,
+    Conversation,
+    IntakeRecord,
+    IntakeRevision,
+    Message,
+    Patient,
+    User,
+)
 from app.schemas.intake import (
     IntakeList,
     IntakeListItem,
@@ -28,7 +36,7 @@ from app.schemas.intake import (
     MessageCreate,
     MessageOut,
 )
-from app.services import audit_service, patient_service
+from app.services import audit_service, patient_service, translation_service
 
 MAX_PATIENT_MESSAGES = 50
 
@@ -66,6 +74,10 @@ class NothingToSubmit(Exception):
 
 class AlreadyConfirmed(Exception):
     pass
+
+
+class InvalidTranscription(Exception):
+    """transcription_id is unknown, from another conversation, failed, or already used."""
 
 
 class EnglishTextNeeded(Exception):
@@ -112,6 +124,12 @@ def add_message(db: Session, conv: Conversation, data: MessageCreate) -> tuple[M
     patient_count = sum(1 for m in conv.messages if m.sender == MessageSender.PATIENT.value)
     if patient_count >= MAX_PATIENT_MESSAGES:
         raise TooManyMessages
+    transcription = None
+    if data.transcription_id is not None:
+        transcription = db.get(AudioTranscription, data.transcription_id)
+        if (transcription is None or transcription.conversation_id != conv.id
+                or transcription.status != "completed" or transcription.message_id is not None):
+            raise InvalidTranscription
     seq = len(conv.messages)
     mine = Message(conversation=conv, seq=seq + 1, sender=MessageSender.PATIENT.value,
                    input_mode=data.input_mode.value, language=data.language.value,
@@ -121,6 +139,9 @@ def add_message(db: Session, conv: Conversation, data: MessageCreate) -> tuple[M
                   content=ACKNOWLEDGEMENTS[data.language])
     db.add_all([mine, ack])
     conv.updated_at = _now()
+    if transcription is not None:
+        db.flush()
+        transcription.message_id = mine.id  # raw transcript stays on the transcription row
     db.commit()
     db.refresh(mine)
     db.refresh(ack)
@@ -158,6 +179,10 @@ def submit(db: Session, conv: Conversation, user: User) -> IntakeRecord:
                                                        "languages": sorted(languages)})
     db.commit()
     db.refresh(intake)
+    # Translate Hindi/Urdu now if the local model is available. Failure never loses
+    # the submission: the intake stays saved with a visible translation status.
+    if translation_service.needs_translation(intake):
+        translation_service.translate_intake(db, intake, user)
     return intake
 
 
@@ -206,6 +231,7 @@ def staff_view(db: Session, intake: IntakeRecord, staff: User) -> IntakeStaffVie
                                      preferred_language=p.preferred_language),
         original_language=intake.original_language, original_text=intake.original_text,
         english_text=intake.english_text, translation_status=intake.translation_status,
+        translation_model=intake.translation_model, translation_error=intake.translation_error,
         final_text=intake.final_text, review_status=intake.review_status,
         reviewed_by_user_id=intake.reviewed_by_user_id, reviewed_at=intake.reviewed_at,
         created_at=intake.created_at, updated_at=intake.updated_at,

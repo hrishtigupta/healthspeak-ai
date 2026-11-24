@@ -1,0 +1,16 @@
+# OPTIONAL: local speech recognition and translation (Phase 5).
+# The rest of the backend works without these packages; voice transcription and
+# automatic translation then report "unavailable" and staff can translate by hand.
+#
+# Install (from backend\, CPU build of PyTorch, ~200 MB download):
+#   ..\.venv\Scripts\python.exe -m pip install -r requirements-ai.txt --extra-index-url https://download.pytorch.org/whl/cpu
+#
+# NVIDIA GPU instead (much larger download, ~2.5 GB): see backend/README.md.
+# Model weights are downloaded separately: python -m app.ai.download_models
+
+torch>=2.4
+# IndicTransToolkit 1.1 does not work with transformers 5.x (verified 2026-11-24).
+transformers>=4.46,<5
+sentencepiece>=0.2
+IndicTransToolkit>=1.1,<2
+numpy>=1.26

@@ -45,6 +45,26 @@ class Settings(BaseSettings):
     # Database used by pytest. Defaults to DATABASE_URL with the name "<db>_test".
     test_database_url: str | None = None
 
+    # --- Local AI: speech recognition + translation (Phase 5) ---
+    ai_enabled: bool = True
+    # Revisions are pinned so the code/weights used never change silently.
+    asr_model_id: str = "openai/whisper-small"
+    asr_model_revision: str = "973afd24965f72e36ca33b3055d56a652f456b4d"
+    translation_model_id: str = "ai4bharat/indictrans2-indic-en-dist-200M"
+    translation_model_revision: str = "d66a2122ad6d28184f3dc3797b652bd80ae3f65f"
+    ai_device: str = "auto"  # auto | cpu | cuda
+    # The API server never downloads models by itself; use `python -m app.ai.download_models`.
+    ai_allow_download: bool = False
+    ffmpeg_path: str = "ffmpeg"
+
+    # Uploaded audio. Default folder is OUTSIDE the project (and outside OneDrive):
+    # %LOCALAPPDATA%\HealthSpeakAI\audio on Windows, ~/.local/share/healthspeak-ai/audio elsewhere.
+    audio_storage_dir: str | None = None
+    audio_max_bytes: int = 10 * 1024 * 1024
+    audio_max_seconds: int = 120
+    # Raw audio is deleted right after transcription unless this is true.
+    audio_keep_after_processing: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

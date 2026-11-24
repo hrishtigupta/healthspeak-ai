@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import admin_users, auth, health, intakes, patients, users
+from app.routers import admin_users, ai_status, auth, health, intakes, patients, users
 
 settings = get_settings()
 
@@ -24,5 +24,5 @@ app.add_middleware(
 
 # Every route lives under /api so it never collides with frontend paths.
 for r in (health.router, auth.router, users.router, admin_users.router, patients.router,
-          intakes.router):
+          intakes.router, ai_status.router):
     app.include_router(r, prefix="/api")

@@ -8,10 +8,12 @@ Access (this phase):
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.enums import ReviewStatus, Role
+from app.ai.audio import AudioRejected
+from app.core.config import get_settings
+from app.core.enums import ContentLanguage, ReviewStatus, Role
 from app.core.permissions import require_roles
 from app.database.models import Conversation, IntakeRecord, Patient, User
 from app.database.session import get_db
@@ -25,8 +27,9 @@ from app.schemas.intake import (
     MessageCreate,
     MessageExchange,
     MessageOut,
+    TranscriptionOut,
 )
-from app.services import intake_service, patient_service
+from app.services import intake_service, patient_service, speech_service, translation_service
 
 router = APIRouter(tags=["intake"])
 
@@ -42,6 +45,8 @@ _ERRORS = {
     intake_service.NothingToSubmit: (status.HTTP_422_UNPROCESSABLE_CONTENT,
                                      "Please describe your concern before submitting."),
     intake_service.AlreadyConfirmed: (status.HTTP_409_CONFLICT, "This intake is already confirmed."),
+    intake_service.InvalidTranscription: (status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                          "That voice transcription cannot be used for this message."),
     intake_service.EnglishTextNeeded: (status.HTTP_422_UNPROCESSABLE_CONTENT,
                                        "Enter the English version of the patient's words before confirming."),
 }
@@ -93,10 +98,37 @@ def send_message(body: MessageCreate, conv: Conversation = Depends(_my_conversat
     try:
         mine, ack = intake_service.add_message(db, conv, body)
     except (intake_service.ConversationClosed, intake_service.TooManyMessages,
-            intake_service.ConsentMissing) as e:
+            intake_service.ConsentMissing, intake_service.InvalidTranscription) as e:
         _fail(e)
     return MessageExchange(patient_message=MessageOut.model_validate(mine),
                            assistant_message=MessageOut.model_validate(ack))
+
+
+@router.post("/conversations/{conversation_id}/transcriptions", response_model=TranscriptionOut,
+             status_code=status.HTTP_201_CREATED)
+async def transcribe(audio: UploadFile = File(...), language: ContentLanguage = Form(ContentLanguage.EN),
+                     conv: Conversation = Depends(_my_conversation),
+                     user: User = Depends(patient_only), db: Session = Depends(get_db)):
+    """Upload a recording; returns the machine transcript for the patient to review.
+
+    Nothing is added to the conversation yet: the patient sends the (possibly
+    edited) text as a voice_server message referencing this transcription.
+    """
+    limit = get_settings().audio_max_bytes
+    data = await audio.read(limit + 1)  # never read more than the limit allows
+    from starlette.concurrency import run_in_threadpool
+
+    try:
+        return await run_in_threadpool(speech_service.transcribe_upload, db, conv, user, data,
+                                       audio.content_type, language)
+    except AudioRejected as e:
+        raise HTTPException(e.status, str(e)) from None
+    except speech_service.TranscriptionFailed as e:
+        raise HTTPException(e.status, str(e)) from None
+    except speech_service.ConversationNotOpen:
+        _fail(intake_service.ConversationClosed())
+    except speech_service.ConsentMissing:
+        _fail(intake_service.ConsentMissing())
 
 
 @router.post("/conversations/{conversation_id}/submit", response_model=IntakePatientView,
@@ -140,6 +172,17 @@ def read_intake(intake_id: uuid.UUID, staff: User = Depends(staff_only),
 def correct_intake(intake_id: uuid.UUID, body: IntakeCorrection, staff: User = Depends(staff_only),
                    db: Session = Depends(get_db)) -> IntakeStaffView:
     intake = intake_service.correct(db, _intake_or_404(intake_id, db), staff, body.final_text, body.reason)
+    return intake_service.staff_view(db, intake, staff)
+
+
+@router.post("/intakes/{intake_id}/translate", response_model=IntakeStaffView)
+def retry_translation(intake_id: uuid.UUID, staff: User = Depends(staff_only),
+                      db: Session = Depends(get_db)) -> IntakeStaffView:
+    """Run the local translation model again for a pending/failed intake."""
+    intake = _intake_or_404(intake_id, db)
+    if not translation_service.needs_translation(intake):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This intake does not need translation.")
+    intake = translation_service.translate_intake(db, intake, staff)
     return intake_service.staff_view(db, intake, staff)
 
 

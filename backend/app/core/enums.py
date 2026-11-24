@@ -59,7 +59,13 @@ class MessageSender(StrEnum):
 
 class InputMode(StrEnum):
     TEXT = "text"
-    VOICE_BROWSER = "voice_browser"  # transcribed by the browser, reviewed by the patient
+    VOICE_BROWSER = "voice_browser"  # (legacy) transcribed by the browser's speech service
+    VOICE_SERVER = "voice_server"  # recorded audio transcribed by our local model, reviewed by the patient
+
+
+class TranscriptionStatus(StrEnum):
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class TranslationStatus(StrEnum):

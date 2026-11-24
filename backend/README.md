@@ -8,6 +8,7 @@ FastAPI + PostgreSQL backend for HealthSpeak AI.
 | 2 — Users, login/logout, roles, UI-language preference | done |
 | 3 — Patient profiles, consent history; React login + sign-up connected | done |
 | 4 — Conversations, intake submission, staff review/correction/confirmation | done |
+| 5 — Local speech recognition (working) and translation (code ready, model needs your HF login) | partly |
 
 ## What runs where
 
@@ -176,12 +177,90 @@ passwords an account is locked for 15 minutes. Every failure returns the same
 logouts, failed attempts, preference changes and account creation are written
 to the `audit_events` table (never passwords or tokens).
 
+## Local voice and translation (Phase 5)
+
+Everything runs on this computer. The browser records audio and uploads it to
+**this** API; nothing is sent to an outside AI service. (The earlier prototype
+used the browser's built-in speech recognition, which sends audio to Google or
+Microsoft servers — it has been removed.)
+
+**1. Install the AI packages** (from `backend\`, ~200 MB, CPU version):
+
+```powershell
+..\.venv\Scripts\python.exe -m pip install -r requirements-ai.txt --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+ffmpeg must be installed and on PATH (`ffmpeg -version`).
+
+**2. Download the speech model** (~1 GB, once per computer):
+
+```powershell
+..\.venv\Scripts\python.exe -m app.ai.download_models
+```
+
+Models go to the Hugging Face cache (`%USERPROFILE%\.cache\huggingface`), which
+is outside this project, so they are never committed or synced by OneDrive.
+
+**3. Translation model (needs your action).** The IndicTrans2 models are
+*gated* on Hugging Face:
+
+1. Create a free account at <https://huggingface.co>, open
+   <https://huggingface.co/ai4bharat/indictrans2-indic-en-dist-200M> and accept
+   the terms (do the same for the `-1B` model if you want the larger one).
+2. Create an access token (Settings → Access Tokens, "Read") and run
+   `..\.venv\Scripts\huggingface-cli.exe login`.
+3. `..\.venv\Scripts\python.exe -m app.ai.download_models --translation-only`
+
+Until then, Hindi/Urdu intakes are saved with *Translation pending*, the review
+screen shows why, and staff can type the English version (or press
+**Retry machine translation** after the model is installed).
+
+| Setting | Default | Notes |
+|---|---|---|
+| Speech model | `openai/whisper-small` (Apache-2.0, 0.97 GB) | Revision pinned |
+| Translation model | `ai4bharat/indictrans2-indic-en-dist-200M` (MIT, 0.91 GB) | `...-indic-en-1B` (4.1 GB) is more accurate; set `TRANSLATION_MODEL_ID`/`_REVISION` |
+| Device | `auto` (GPU if a CUDA PyTorch is installed) | See GPU note below |
+| Audio | max 10 MB / 120 s; webm, ogg, wav, mp3, m4a | Type checked by content, not file name |
+| Raw audio | deleted right after transcription | Stored meanwhile in `%LOCALAPPDATA%\HealthSpeakAI\audio` |
+
+**What is stored:** the raw machine transcript (`audio_transcriptions`), the
+text the patient approved/edited (the message), and model id/revision, duration,
+processing time and a SHA-256 of the audio — but not the audio itself.
+
+**Status:** staff/admin can call `GET /api/ai/status` (add `?load=true` to load
+models now) to see whether each model is ready, unavailable, or failed, and why.
+
+**Measured on this development PC** (i7-11700K CPU, CPU-only PyTorch, synthetic
+English text-to-speech recordings): model load ≈ 1.5–5 s; a 6 s recording takes
+≈ 5–7 s; a 44 s recording ≈ 35 s (roughly real time). Transcription of the
+synthetic sample was word-for-word correct.
+
+**Not yet verified (be careful):**
+- Hindi and Urdu *speech* recognition quality — no Hindi/Urdu speech samples were
+  available (only English voices are installed for synthetic audio). Test with
+  synthetic or consented, non-identifying Hindi/Urdu recordings before relying on it.
+- Translation output — the gated model could not be downloaded without your
+  Hugging Face login, so the translation code path has only been tested with a
+  stand-in engine. Check medical vocabulary and Hindi/Urdu–English code-switching.
+
+**GPU (optional, faster):** this PC has an NVIDIA RTX 3070. Installing the CUDA
+build of PyTorch (~2.5 GB download) lets `AI_DEVICE=auto` use it:
+`..\.venv\Scripts\python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cu126`
+
 ## Tests
 
 `pytest` uses a separate database named `healthspeak_test` (created
 automatically). Tables there are emptied before every test, so your development
 data is never touched. The migration test briefly creates and deletes a scratch
 database `healthspeak_migration_test`.
+
+Tests never use the real AI models unless you opt in: by default the models are
+replaced with stand-ins (and "not installed" behaviour is tested too). To also
+run the real Whisper model on the synthetic recording in `tests/fixtures/`:
+
+```powershell
+$env:HEALTHSPEAK_AI_TESTS = "1"; ..\.venv\Scripts\python.exe -m pytest -k real_whisper
+```
 
 ## Stopping the database
 

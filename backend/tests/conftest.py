@@ -89,6 +89,30 @@ def _clean_tables(request, engine):
     yield
 
 
+def _models_not_installed():
+    from app.ai.model_loader import EngineUnavailable
+
+    raise EngineUnavailable("test: real model not loaded")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ai(monkeypatch, tmp_path):
+    """By default tests never touch real models and write audio to a temp folder.
+
+    Tests that want AI behaviour install fakes with `fake_ai`, or opt into the
+    real models (see test_speech.py::test_real_whisper...).
+    """
+    from app.ai.model_loader import asr_slot, translation_slot
+
+    for slot in (asr_slot, translation_slot):
+        slot.reset()
+        monkeypatch.setattr(slot, "_factory", _models_not_installed)
+    monkeypatch.setattr(get_settings(), "audio_storage_dir", str(tmp_path / "audio"))
+    yield
+    for slot in (asr_slot, translation_slot):
+        slot.reset()
+
+
 @pytest.fixture
 def db(session_factory) -> Iterator[Session]:
     with session_factory() as s:

@@ -4,11 +4,33 @@ import { api } from "./api.js";
 // ----- patient -----
 export const openConversation = () => api("/conversations", { method: "POST" });
 
-export const sendMessage = (conversationId, content, language, inputMode = "text") =>
+export const sendMessage = (
+  conversationId,
+  content,
+  language,
+  inputMode = "text",
+  transcriptionId = null,
+) =>
   api(`/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: { content, language, input_mode: inputMode },
+    body: {
+      content,
+      language,
+      input_mode: inputMode,
+      ...(transcriptionId ? { transcription_id: transcriptionId } : {}),
+    },
   });
+
+// Upload a recording; the server transcribes it locally and returns text to review.
+export const transcribeAudio = (conversationId, blob, language) => {
+  const form = new FormData();
+  const ext = (blob.type || "").includes("ogg") ? "ogg" : (blob.type || "").includes("mp4") ? "m4a" : "webm";
+  form.append("audio", blob, `recording.${ext}`);
+  form.append("language", language);
+  return api(`/conversations/${conversationId}/transcriptions`, { method: "POST", body: form });
+};
+
+export const retryTranslation = (id) => api(`/intakes/${id}/translate`, { method: "POST" });
 
 export const submitConversation = (conversationId) =>
   api(`/conversations/${conversationId}/submit`, { method: "POST" });

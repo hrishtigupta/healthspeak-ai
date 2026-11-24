@@ -53,6 +53,8 @@ import {
   getIntake,
   correctIntake,
   confirmIntake,
+  transcribeAudio,
+  retryTranslation,
   LANGUAGE_NAMES,
   REVIEW_LABELS,
   TRANSLATION_LABELS,
@@ -255,73 +257,68 @@ export default function App() {
     [sending, Sending] = useState(false),
     [myIntakeList, MyIntakeList] = useState(null), // patient's own submissions
     [staffIntakes, StaffIntakes] = useState(null), // intakes awaiting review
-    [reviewIntake, ReviewIntake] = useState(null); // intake open in the review screen
+    [reviewIntake, ReviewIntake] = useState(null), // intake open in the review screen
+    [transcribing, Transcribing] = useState(false), // server is transcribing a recording
+    [transcriptionId, TranscriptionId] = useState(null); // transcription shown in the voice box
   const notify = (x) => {
     T(x);
     setTimeout(() => T(""), 3000);
   };
 
-  const recognitionRef = useRef(null);
-
-  const toggleListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-      Listen(false);
+  // Voice: record in the browser, transcribe on OUR server with the local model.
+  // (The browser's built-in speech recognition sends audio to cloud services.)
+  const recorderRef = useRef(null);
+  const stopRecorder = (cancel = false) => {
+    const r = recorderRef.current;
+    if (r && r.state !== "inactive") {
+      r._cancelled = cancel;
+      r.stop();
+    }
+  };
+  const toggleListening = async () => {
+    if (listening) return stopRecorder();
+    if (transcribing || !requirePatient()) return;
+    if (!navigator.mediaDevices || typeof window.MediaRecorder === "undefined") {
+      notify("Recording is not supported in this browser. Please type your concern.");
       return;
     }
-
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      notify("Speech recognition is not supported. Use Chrome or Edge.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-
-    const languageCodes = {
-      English: "en-IN",
-      Hindi: "hi-IN",
-      Urdu: "ur-PK",
-      Dogri: "hi-IN",
-      Punjabi: "pa-IN",
-    };
-
-    recognition.lang = languageCodes[language] || "en-IN";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0].transcript)
-        .join("");
-
-      V(transcript);
-    };
-
-    recognition.onerror = (event) => {
-      Listen(false);
-      recognitionRef.current = null;
-      notify("Microphone error: " + event.error);
-    };
-
-    recognition.onend = () => {
-      Listen(false);
-      recognitionRef.current = null;
-    };
-
-    recognitionRef.current = recognition;
-
+    let stream;
     try {
-      recognition.start();
-      Listen(true);
-    } catch (error) {
-      recognitionRef.current = null;
-      Listen(false);
-      notify("Could not start microphone. Try again.");
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      notify("Microphone access was blocked. Allow the microphone, or type your concern instead.");
+      return;
     }
+    const mime =
+      ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find(
+        (t) => window.MediaRecorder.isTypeSupported(t),
+      ) || "";
+    const rec = new window.MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    const chunks = [];
+    rec.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      clearTimeout(rec._timer);
+      stream.getTracks().forEach((t) => t.stop());
+      recorderRef.current = null;
+      Listen(false);
+      if (rec._cancelled || !chunks.length) return;
+      Transcribing(true);
+      try {
+        const cid = await ensureConversation();
+        const blob = new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
+        const t = await transcribeAudio(cid, blob, LANGUAGE_CODES[language] || "en");
+        V(t.text); // the patient reviews (and may edit) this before sending
+        TranscriptionId(t.id);
+      } catch (err) {
+        notify(err.message);
+      } finally {
+        Transcribing(false);
+      }
+    };
+    rec._timer = setTimeout(() => stopRecorder(), 110000); // server limit is 120 s
+    recorderRef.current = rec;
+    rec.start();
+    Listen(true);
   };
   const go = (x) => {
     S(x);
@@ -385,6 +382,8 @@ export default function App() {
     Msgs([GREETING]);
     Msg("");
     V("");
+    stopRecorder(true);
+    TranscriptionId(null);
     MyIntakeList(null);
     StaffIntakes(null);
     ReviewIntake(null);
@@ -413,15 +412,16 @@ export default function App() {
     return false;
   };
   // Save one message in the patient's conversation (creating/resuming it first).
-  const postToIntake = async (text, inputMode) => {
-    let cid = convId;
-    if (!cid) {
-      const conv = await openConversation();
-      cid = conv.id;
-      ConvId(cid);
-      Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
-    }
-    const ex = await sendMessage(cid, text, LANGUAGE_CODES[language] || "en", inputMode);
+  const ensureConversation = async () => {
+    if (convId) return convId;
+    const conv = await openConversation();
+    ConvId(conv.id);
+    Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
+    return conv.id;
+  };
+  const postToIntake = async (text, inputMode, tid = null) => {
+    const cid = await ensureConversation();
+    const ex = await sendMessage(cid, text, LANGUAGE_CODES[language] || "en", inputMode, tid);
     Msgs((m) => [...m, toChat(ex.patient_message), toChat(ex.assistant_message)]);
   };
   const send = async () => {
@@ -443,18 +443,18 @@ export default function App() {
       notify("Please speak or enter your health concern first.");
       return;
     }
-    // Stop microphone if it is still active
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    if (listening || transcribing) {
+      notify("Please wait until the recording has been transcribed.");
+      return;
     }
-    Listen(false);
     if (!requirePatient() || sending) return;
     Sending(true);
     try {
-      // The patient reviewed this browser transcript before continuing.
-      await postToIntake(voice, "voice_browser");
+      // The patient has reviewed this text. If it came from a recording, the raw
+      // machine transcript stays stored separately on the server.
+      await postToIntake(voice, transcriptionId ? "voice_server" : "text", transcriptionId);
       V("");
+      TranscriptionId(null);
       go("chat");
     } catch (err) {
       notify(err.message);
@@ -502,6 +502,23 @@ export default function App() {
       go("intake");
     } catch (err) {
       notify(err.message);
+    }
+  };
+  const retryReviewTranslation = async () => {
+    if (!reviewIntake || busy) return;
+    Busy(true);
+    try {
+      const updated = await retryTranslation(reviewIntake.id);
+      ReviewIntake(updated);
+      notify(
+        updated.translation_status === "completed"
+          ? "Machine translation added. Please check it against the original."
+          : updated.translation_error || "Translation is still unavailable.",
+      );
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      Busy(false);
     }
   };
   const saveReview = async (finalText, reason, andConfirm) => {
@@ -907,11 +924,19 @@ export default function App() {
           </header>
           <div className="voice-center">
             <span className="eyebrow">VOICE INTAKE</span>
-            <h2>{listening ? "Listening..." : "Speak in your language"}</h2>
+            <h2>
+              {listening
+                ? "Listening..."
+                : transcribing
+                  ? "Writing down your words..."
+                  : "Speak in your language"}
+            </h2>
             <p>
               {listening
                 ? "Listening for your concern. Tap the microphone when finished."
-                : "Press the microphone and tell us what you are experiencing."}
+                : transcribing
+                  ? "This can take a few seconds."
+                  : "Press the microphone and tell us what you are experiencing."}
             </p>
             <div className={"sound " + (listening ? "on" : "")}>
               <i />
@@ -925,7 +950,8 @@ export default function App() {
             <textarea
               value={voice}
               onChange={(e) => V(e.target.value)}
-              placeholder="Your words will appear here..."
+              placeholder="Your words will appear here. You can also type."
+              dir="auto"
             />
             <div className="mic-controls">
               <button onClick={() => Modal("voicehelp")}>?</button>
@@ -935,15 +961,14 @@ export default function App() {
               >
                 {listening ? <AudioLines /> : <Mic />}
               </button>
-              <button onClick={() => {
-                if (recognitionRef.current) {
-                    recognitionRef.current.stop();
-                    recognitionRef.current = null;
-                }
-
-                V('');
-                Listen(false);
-                }}>
+              <button
+                aria-label="Clear"
+                onClick={() => {
+                  stopRecorder(true);
+                  V("");
+                  TranscriptionId(null);
+                }}
+              >
                 <X/>
                 </button>
             </div>
@@ -961,8 +986,9 @@ export default function App() {
               </Btn>
             </div>
             <small className="demo-note">
-                Speech recognition uses your browser's microphone feature.
-                Please review the transcribed text before continuing.
+                Your recording is turned into text on the hospital's own
+                HealthSpeak server, not by an outside service, and the audio is
+                deleted afterwards. Please check the text before continuing.
             </small>
           </div>
         </div>
@@ -1186,6 +1212,7 @@ export default function App() {
           busy={busy}
           go={go}
           onSave={saveReview}
+          onRetryTranslation={retryReviewTranslation}
         />
       )}
       {page === "workspace" && (
@@ -1284,7 +1311,7 @@ export default function App() {
           <p>3. Review the transcribed text, then continue to chat.</p>
           <p className="demo-note">
             Allow microphone access when your browser asks for permission.
-            Speech recognition may require an internet connection.
+            Your recording is processed on the hospital's own server.
           </p>
         </ModalBox>
       )}
@@ -1880,7 +1907,7 @@ function Workspace({
     </div>
   );
 }
-function IntakeReview({ intake, busy, go, onSave }) {
+function IntakeReview({ intake, busy, go, onSave, onRetryTranslation }) {
   const [text, SetText] = useState(
     intake.final_text || intake.english_text || "",
   );
@@ -1945,6 +1972,22 @@ function IntakeReview({ intake, busy, go, onSave }) {
                   No English version yet. Write the English version in the box
                   below before confirming.
                 </p>
+              )}
+              {intake.translation_model && (
+                <small>
+                  Machine translation by {intake.translation_model}. It may
+                  contain mistakes; compare it with the original words.
+                </small>
+              )}
+              {intake.translation_error && (
+                <small className="demo-note">{intake.translation_error}</small>
+              )}
+              {["pending", "failed"].includes(intake.translation_status) && (
+                <div className="actions">
+                  <Btn kind="outline" disabled={busy} onClick={onRetryTranslation}>
+                    Retry machine translation
+                  </Btn>
+                </div>
               )}
             </div>
             <div className="workspace-section">
