@@ -13,9 +13,18 @@ from app.database.models.intake import (
 )
 from app.database.models.patient import ConsentRecord, Patient
 from app.database.models.user import User
+from app.database.models.visit import (
+    Appointment,
+    DoctorSchedule,
+    Notification,
+    QueueCounter,
+    QueueEntry,
+    QueueNote,
+)
 
 __all__ = [
     "AudioTranscription", "AuditEvent", "AuthSession", "ConsentRecord", "Conversation", "Department",
     "IntakeAnalysis", "IntakeRecord", "RoutingRule",
     "IntakeRevision", "Message", "Patient", "User",
+    "Appointment", "DoctorSchedule", "Notification", "QueueCounter", "QueueEntry", "QueueNote",
 ]

@@ -10,6 +10,7 @@ FastAPI + PostgreSQL backend for HealthSpeak AI.
 | 4 — Conversations, intake submission, staff review/correction/confirmation | done |
 | 5 — Local speech recognition (working) and translation (code ready, model needs your HF login) | partly |
 | 6 — Structured intake, traceable summary, configurable department suggestion | done |
+| 7 — Queue tokens, doctor schedules, appointments, notifications, dashboards | done |
 
 ## What runs where
 
@@ -281,6 +282,50 @@ Default departments/rules (`app/core/default_routing.py`, DRAFT) are created by
 | `GET/POST /api/admin/routing-rules`, `PATCH /api/admin/routing-rules/{id}` | admin | Manage rules (`route`: phrase → department, weight 1–10; `attention`: flag phrase) |
 | `POST /api/intakes/{id}/analyse` | staff | Re-run analysis (`{"source": "final_text"}` uses the staff-reviewed text) |
 | `POST /api/intakes/{id}/confirm` | staff | Now requires `department_id` |
+
+## Queue, appointments, notifications, dashboards (Phase 7)
+
+- **Queue (D5):** confirming an intake puts the patient in that department's
+  queue *in the same database transaction*. Tokens count per department per
+  hospital-local day (`ORT-001`, `GM-002`; an atomic counter makes concurrent
+  requests safe). One active visit per patient per day. Status flow:
+  `waiting → checked_in → in_consultation → completed` (or `cancelled` /
+  `no_show` before consultation). Staff may make every allowed change; doctors
+  may only call in and complete patients **assigned to them**, and cannot see
+  anyone else's visits (404).
+- **Schedules & appointments (D6):** weekly doctor schedules in local time
+  (`HOSPITAL_TIMEZONE`, default `Asia/Kolkata`; stored as UTC). Free slots are
+  computed from schedules minus booked appointments; the database refuses two
+  booked appointments for one doctor at the same start time. Doctors can mark
+  their own appointments completed / no-show, not cancel them.
+- **Notifications:** short in-app messages (no clinical details) for: visit
+  token, intake reviewed, "it's your turn", appointment booked/cancelled,
+  doctor assigned.
+- **Dashboards:** staff (today's queue, intakes awaiting review, attention
+  flags, appointments, average wait), doctor (own counts), admin (totals by
+  role/status/language/department, transcription and translation results, AI
+  model state). Dashboards contain counts only — no names or identifiers.
+- `python -m app.seed` also gives the demo doctor a synthetic schedule
+  (Mon–Sat 09:00–13:00, General Medicine, Room 101).
+
+| Method & path | Who | Purpose |
+|---|---|---|
+| `POST /api/queue` | staff | Add a patient to today's queue (`patient_id`, `department_id`, optional doctor) |
+| `GET /api/queue?status=&q=&day=` | staff (all) / doctor (own) | Today's queue with tokens and position |
+| `GET /api/queue/{id}` | staff / assigned doctor | Visit details, confirmed intake, notes (audited) |
+| `POST /api/queue/{id}/status` | staff / assigned doctor | Change status (rules above) |
+| `PATCH /api/queue/{id}` | staff | Assign/unassign doctor, move department (new token) |
+| `POST /api/queue/{id}/notes` | staff / assigned doctor | Care-team note |
+| `GET /api/patients/me/visits` | patient | Own token, status, people ahead |
+| `GET /api/doctors` | staff, doctor, admin | Doctors and their departments |
+| `GET/POST /api/doctor-schedules`, `PATCH .../{id}` | staff, admin (doctors read own) | Weekly schedules |
+| `GET /api/appointments/slots?doctor_user_id=&day=` | staff | Free slots |
+| `POST /api/appointments` | staff | Book (`starts_at` must include a time-zone offset) |
+| `GET /api/appointments?day=` | staff / doctor (own) | Appointments for a day |
+| `POST /api/appointments/{id}/status` | staff / own doctor | completed, cancelled, no_show |
+| `GET /api/patients/me/appointments` | patient | Own appointments |
+| `GET /api/notifications`, `POST .../{id}/read`, `POST .../read-all` | any logged-in user | Own messages |
+| `GET /api/dashboard/staff` / `doctor` / `admin` | that role | Aggregated counts |
 
 ## Tests
 

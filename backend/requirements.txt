@@ -8,6 +8,7 @@ psycopg[binary]>=3.2,<4.0
 argon2-cffi>=23.1,<26.0
 email-validator>=2.2,<3.0
 python-multipart>=0.0.18  # audio file uploads
+tzdata>=2024.1  # time-zone database (Windows has none built in)
 
 # Testing
 pytest>=8.3,<9.0

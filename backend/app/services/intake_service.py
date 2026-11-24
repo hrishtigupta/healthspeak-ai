@@ -42,7 +42,9 @@ from app.services import (
     analysis_service,
     audit_service,
     department_service,
+    notification_service,
     patient_service,
+    queue_service,
     translation_service,
 )
 
@@ -302,6 +304,15 @@ def confirm(db: Session, intake: IntakeRecord, staff: User, final_text: str | No
     intake.reviewed_at = _now()
     audit_service.record(db, "intake.confirmed", actor_user_id=staff.id, target_type="intake",
                          target_id=intake.id, details={"department": department.code})
+    # Same transaction: confirming routes the patient into the department's queue
+    # (unless they already have an active visit today).
+    try:
+        queue_service.create_entry(db, patient=intake.patient, department=department, actor=staff,
+                                   intake=intake, commit=False)
+    except queue_service.AlreadyQueued:
+        pass
+    notification_service.notify(db, intake.patient.user_id, "intake.confirmed", "Your concern was reviewed",
+                                f"Medical staff reviewed what you shared. Department: {department.name}.")
     db.commit()
     db.refresh(intake)
     return intake

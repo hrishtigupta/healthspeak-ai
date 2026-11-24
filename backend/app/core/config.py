@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Password for the synthetic demo users created by `python -m app.seed`.
     seed_demo_password: str | None = None
 
+    # Hospital's local time zone: queue days and doctor schedules use local wall-clock
+    # time; everything is STORED in UTC.
+    hospital_timezone: str = "Asia/Kolkata"
+
     # Database used by pytest. Defaults to DATABASE_URL with the name "<db>_test".
     test_database_url: str | None = None
 

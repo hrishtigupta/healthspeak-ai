@@ -20,3 +20,12 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .status.attention{background:#fde2df;color:#8a1c12;margin-left:6px}
 small.suggestion{display:block;margin-top:4px;color:var(--muted)}
 .dept-select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;margin-top:8px}
+/* Phase 7: queue, visit status, dashboards */
+.kv{display:flex;justify-content:space-between;gap:12px;margin:6px 0}
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:18px}
+.token-card{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;margin:10px 0}
+.token-card small{display:block;color:var(--muted)}
+.token-card .token{font-size:28px;letter-spacing:1px}
+.visit-status p.unread{font-weight:600}
+.side-card .field{display:block;margin:8px 0}
+.side-card .field select,.side-card .field input{width:100%}

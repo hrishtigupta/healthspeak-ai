@@ -80,6 +80,37 @@ class ReviewStatus(StrEnum):
     CONFIRMED = "confirmed"  # an authorised staff member confirmed the final text
 
 
+class QueueStatus(StrEnum):
+    WAITING = "waiting"
+    CHECKED_IN = "checked_in"
+    IN_CONSULTATION = "in_consultation"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    NO_SHOW = "no_show"
+
+
+QUEUE_ACTIVE = (QueueStatus.WAITING, QueueStatus.CHECKED_IN, QueueStatus.IN_CONSULTATION)
+
+# Allowed status changes. Staff may make any of these; doctors only the ones in
+# DOCTOR_QUEUE_TRANSITIONS, and only for patients assigned to them.
+QUEUE_TRANSITIONS = {
+    QueueStatus.WAITING: {QueueStatus.CHECKED_IN, QueueStatus.CANCELLED, QueueStatus.NO_SHOW},
+    QueueStatus.CHECKED_IN: {QueueStatus.IN_CONSULTATION, QueueStatus.CANCELLED, QueueStatus.NO_SHOW},
+    QueueStatus.IN_CONSULTATION: {QueueStatus.COMPLETED},
+}
+DOCTOR_QUEUE_TRANSITIONS = {
+    QueueStatus.CHECKED_IN: {QueueStatus.IN_CONSULTATION},
+    QueueStatus.IN_CONSULTATION: {QueueStatus.COMPLETED},
+}
+
+
+class AppointmentStatus(StrEnum):
+    BOOKED = "booked"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    NO_SHOW = "no_show"
+
+
 def sql_in_list(enum_cls: type[StrEnum]) -> str:
     """Render "'a', 'b', 'c'" for use inside a CHECK constraint."""
     return ", ".join(f"'{m.value}'" for m in enum_cls)

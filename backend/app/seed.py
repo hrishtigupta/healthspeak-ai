@@ -6,14 +6,14 @@ Password comes from SEED_DEMO_PASSWORD in the repo-root .env file.
 """
 
 import sys
-from datetime import date
+from datetime import date, time
 
 from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.consent import CONSENT_VERSION
 from app.core.enums import ConsentMethod, ConsentType, Gender, Role, UiLanguage
-from app.database.models import ConsentRecord, Patient, User
+from app.database.models import ConsentRecord, Department, DoctorSchedule, Patient, User
 from app.database.session import SessionLocal
 from app.services import department_service, user_service
 
@@ -50,6 +50,20 @@ DEMO_USERS = [
 ]
 
 
+def _ensure_demo_doctor_schedule(db) -> bool:
+    """Synthetic weekly hours for the demo doctor: Mon-Sat 09:00-13:00, General Medicine."""
+    doctor = db.scalar(select(User).where(User.email == "doctor@example.com"))
+    gm = db.scalar(select(Department).where(Department.code == "general_medicine"))
+    if doctor is None or gm is None or db.scalar(select(DoctorSchedule).where(
+            DoctorSchedule.doctor_user_id == doctor.id)):
+        return False
+    for weekday in range(6):
+        db.add(DoctorSchedule(doctor_user_id=doctor.id, department_id=gm.id, weekday=weekday,
+                              start_time=time(9, 0), end_time=time(13, 0), slot_minutes=15, room="Room 101"))
+    db.commit()
+    return True
+
+
 def main() -> int:
     password = get_settings().seed_demo_password
     if not password or len(password) < 8:
@@ -72,6 +86,8 @@ def main() -> int:
         rules = department_service.load_defaults(db)
         if rules:
             print(f"  created  default departments and {rules} routing rules (DRAFT - review with clinicians)")
+        if _ensure_demo_doctor_schedule(db):
+            print("  created  demo doctor schedule (Mon-Sat 09:00-13:00, General Medicine, Room 101)")
     print(f"Done: {created} accounts created.")
     return 0
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -62,6 +62,13 @@ import {
   TRANSLATION_LABELS,
   formatDate,
 } from "./services/intake.js";
+import { Btn, Brand, Field, Info, Stat, ModalBox, initials, pad2 } from "./components/ui.jsx";
+import QueuePanel from "./pages/staff/QueuePanel.jsx";
+import VisitWorkspace from "./pages/staff/VisitWorkspace.jsx";
+import DoctorHome from "./pages/doctor/DoctorHome.jsx";
+import AdminHome from "./pages/admin/AdminHome.jsx";
+import VisitStatus from "./pages/patient/VisitStatus.jsx";
+import { staffDashboard } from "./services/visits.js";
 const GREETING = {
   by: "doctor",
   text: "Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?",
@@ -77,153 +84,6 @@ const ROLE_LABELS = {
   staff: "Staff",
   admin: "Administrator",
 };
-const patients0 = [
-  [
-    "#42",
-    "Rohan Das",
-    45,
-    "Male",
-    "09:30 AM",
-    "Dr. Kumar",
-    "Cardiology",
-    "Waiting",
-    "Intake done",
-    "Fever, headache, weakness",
-  ],
-  [
-    "#43",
-    "Ananya Mehta",
-    32,
-    "Female",
-    "09:35 AM",
-    "Dr. Kapoor",
-    "General medicine",
-    "Checked-in",
-    "Intake done",
-    "Persistent cough, mild fever",
-  ],
-  [
-    "#44",
-    "Meera Patel",
-    58,
-    "Female",
-    "09:40 AM",
-    "Dr. Sharma",
-    "General medicine",
-    "Waiting",
-    "In review",
-    "Stomach pain, nausea",
-  ],
-  [
-    "#45",
-    "Arjun Singh",
-    27,
-    "Male",
-    "09:45 AM",
-    "Dr. Rao",
-    "Orthopaedics",
-    "Waiting",
-    "Pending",
-    "Knee pain",
-  ],
-  [
-    "#46",
-    "Fatima Khan",
-    39,
-    "Female",
-    "09:50 AM",
-    "Dr. Kapoor",
-    "Pulmonology",
-    "Waiting",
-    "Intake done",
-    "Breathing discomfort",
-  ],
-  [
-    "#47",
-    "Vikram Shah",
-    51,
-    "Male",
-    "09:55 AM",
-    "Dr. Dev",
-    "Cardiology",
-    "Completed",
-    "Intake done",
-    "Routine follow-up",
-  ],
-  [
-    "#48",
-    "Lakshmi Nair",
-    63,
-    "Female",
-    "10:00 AM",
-    "Dr. Rao",
-    "Neurology",
-    "Waiting",
-    "Pending",
-    "Headache",
-  ],
-  [
-    "#49",
-    "Suresh Kumar",
-    34,
-    "Male",
-    "10:05 AM",
-    "Dr. Sharma",
-    "General medicine",
-    "Completed",
-    "Intake done",
-    "Annual health checkup",
-  ],
-].map(
-  ([id, name, age, gender, time, doctor, dept, status, intake, symptoms]) => ({
-    id,
-    name,
-    age,
-    gender,
-    time,
-    doctor,
-    dept,
-    status,
-    intake,
-    symptoms,
-  }),
-);
-const Btn = ({ children, kind = "", ...p }) => (
-  <button className={"btn " + kind} {...p}>
-    {children}
-  </button>
-);
-const Brand = ({ go }) => (
-  <button className="brand" onClick={() => go("home")}>
-    <span>∿</span> HealthSpeak AI
-  </button>
-);
-const Field = ({ label, ...p }) => (
-  <label className="field">
-    <span>{label}</span>
-    <input {...p} />
-  </label>
-);
-const Info = ({ label, value }) => (
-  <div className="info">
-    <small>{label}</small>
-    <b>{value}</b>
-  </div>
-);
-const Status = ({ value }) => (
-  <span
-    className={
-      "status " +
-      (value === "Completed"
-        ? "done"
-        : value === "Checked-in"
-          ? "blue"
-          : "wait")
-    }
-  >
-    {value}
-  </span>
-);
 export default function App() {
   const [page, S] = useState("home"),
     [role, R] = useState("Patient"),
@@ -243,14 +103,8 @@ export default function App() {
     [voice, V] = useState(""),
     [listening, Listen] = useState(false),
     [summaryIntake, SummaryIntake] = useState(null), // intake shown on the summary page
-    [patients, Patients] = useState(patients0),
-    [selected, Selected] = useState(patients0[0]),
-    [query, Q] = useState(""),
-    [filter, F] = useState("All"),
-    [editing, Editing] = useState(false),
-    [editName, EN] = useState("Rohan Das"),
-    [editStatus, ES] = useState("Waiting"),
-    [note, Note] = useState(""),
+    [visitId, VisitId] = useState(null), // queue entry open in the visit workspace
+    [staffDash, StaffDash] = useState(null), // today's counts for the staff overview
     [user, SetUser] = useState(null), // logged-in user from the backend
     [busy, Busy] = useState(false), // a login/sign-up request is in flight
     [agreed, Agreed] = useState(false), // sign-up consent checkbox
@@ -328,16 +182,6 @@ export default function App() {
     Modal("");
     window.scrollTo(0, 0);
   };
-  const filtered = useMemo(
-    () =>
-      patients.filter(
-        (p) =>
-          (p.name.toLowerCase().includes(query.toLowerCase()) ||
-            p.id.toLowerCase().includes(query.toLowerCase())) &&
-          (filter === "All" || p.status === filter),
-      ),
-    [patients, query, filter],
-  );
   const login = async () => {
     if (!email.trim() || !password.trim())
       return notify("Enter your email/mobile number and password.");
@@ -348,7 +192,7 @@ export default function App() {
       const u = await apiLogin(email, password);
       SetUser(u);
       P("");
-      go(u.role === "patient" ? "dashboard" : "staff");
+      go({ patient: "dashboard", staff: "staff", doctor: "doctor", admin: "admin" }[u.role] || "home");
       const label = ROLE_LABELS[u.role] || u.role;
       notify(
         label === role
@@ -493,6 +337,8 @@ export default function App() {
         .catch((err) => notify(err.message));
     }
     if (page === "staff" && user && user.role === "staff") {
+      StaffDash(null);
+      staffDashboard().then(StaffDash).catch(() => StaffDash(null));
       StaffIntakes(null);
       listIntakes("pending_review")
         .then((r) => StaffIntakes(r))
@@ -556,11 +402,6 @@ export default function App() {
     } finally {
       Busy(false);
     }
-  };
-  const update = (patch) => {
-    let p = { ...selected, ...patch };
-    Selected(p);
-    Patients((a) => a.map((x) => (x.id === p.id ? p : x)));
   };
   const toastUI = toast && (
     <div className="toast">
@@ -1090,43 +931,20 @@ export default function App() {
           </main>
         </div>
       )}
-      {page === "doctor" && (
-        <div className="profile-page">
-          <section className="profile-card">
-            <div className="profile-head">
-              <Brand go={go} />
-              <Btn kind="outline" onClick={() => go("chat")}>
-                <X /> Close
-              </Btn>
-            </div>
-            <span className="eyebrow">YOUR CARE TEAM</span>
-            <h2>Doctor Profile</h2>
-            <p>Information about your assigned healthcare professional.</p>
-            <div className="doctor-profile">
-              <div>DS</div>
-              <section>
-                <h3>Dr. Divya Sharma</h3>
-                <p>General Medicine Specialist</p>
-                <span className="status done">● Online</span>
-              </section>
-            </div>
-            <div className="detail-grid">
-            <Info label="Department" value="Internal Medicine (OPD)"/>
-            <Info label="Hospital / Clinic Location" value="HealthSpeak Main City Hospital"/>
-            <Info label="Specialization" value="General Physician"/>
-            <Info label="Cabin / Room Number" value="Room 304, Block A"/>
-            <Info label="Profile Status" value="Sample doctor profile"/>
-            </div>
-
-            <p className="demo-note">
-            This is illustrative doctor information for the frontend prototype.
-            No real doctor assignment or consultation is taking place.
-            </p>
-            <Btn onClick={() => go("chat")}>
-              <ArrowLeft /> Back to Chat
-            </Btn>
-          </section>
-        </div>
+      {page === "doctor" && user && (
+        <DoctorHome
+          go={go}
+          notify={notify}
+          userName={user.full_name}
+          onLogout={doLogout}
+          onOpen={(id) => {
+            VisitId(id);
+            go("workspace");
+          }}
+        />
+      )}
+      {page === "admin" && user && (
+        <AdminHome go={go} notify={notify} userName={user.full_name} onLogout={doLogout} />
       )}
       {page === "dashboard" && (
         <PatientDashboard
@@ -1208,25 +1026,18 @@ export default function App() {
       )}
       {page === "staff" && (
         <Staff
-          patients={filtered}
-          all={patients}
-          query={query}
-          setQuery={Q}
-          filter={filter}
-          setFilter={F}
           go={go}
-          choose={(p) => {
-            Selected(p);
-            EN(p.name);
-            ES(p.status);
-            go("workspace");
-          }}
           notify={notify}
           userName={user && user.full_name}
           onLogout={doLogout}
           intakes={staffIntakes}
           canReview={Boolean(user && user.role === "staff")}
           onReview={openReview}
+          dash={staffDash}
+          onOpen={(id) => {
+            VisitId(id);
+            go("workspace");
+          }}
         />
       )}
       {page === "intake" && reviewIntake && (
@@ -1241,21 +1052,14 @@ export default function App() {
           departments={departments}
         />
       )}
-      {page === "workspace" && (
-        <Workspace
-          patient={selected}
-          editName={editName}
-          setEditName={EN}
-          editStatus={editStatus}
-          setEditStatus={ES}
-          editing={editing}
-          setEditing={Editing}
-          update={update}
+      {page === "workspace" && visitId && user && (
+        <VisitWorkspace
+          key={visitId}
+          entryId={visitId}
+          role={user.role}
           go={go}
           notify={notify}
-          note={note}
-          setNote={Note}
-          modal={Modal}
+          onBack={() => go(user.role === "doctor" ? "doctor" : "staff")}
         />
       )}
       {modal === "forgot" && (
@@ -1338,22 +1142,6 @@ export default function App() {
           <p className="demo-note">
             Allow microphone access when your browser asks for permission.
             Your recording is processed on the hospital's own server.
-          </p>
-        </ModalBox>
-      )}
-      {modal === "intake" && (
-        <ModalBox title="AI intake summary" close={() => Modal("")}>
-          <p>
-            <b>Reported symptoms:</b> {selected.symptoms}
-          </p>
-          <p>
-            <b>Assigned department:</b> {selected.dept}
-          </p>
-          <p>
-            <b>Review status:</b> {selected.intake}
-          </p>
-          <p className="demo-note">
-            This sample intake must be reviewed by authorised medical staff.
           </p>
         </ModalBox>
       )}
@@ -1483,6 +1271,7 @@ function PatientDashboard({
               </div>
               <HeartPulse />
             </section>
+            <VisitStatus />
             <section className="history" id="history">
               <div className="section-title">
                 <div>
@@ -1571,21 +1360,23 @@ function PatientDashboard({
   );
 }
 function Staff({
-  patients,
-  all,
-  query,
-  setQuery,
-  filter,
-  setFilter,
   go,
-  choose,
   notify,
   userName,
   onLogout,
   intakes,
   canReview,
   onReview,
+  dash,
+  onOpen,
 }) {
+  const q = dash ? dash.queue : null;
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
   return (
     <div className="staff-layout">
       <aside className="staff-sidebar">
@@ -1594,24 +1385,18 @@ function Staff({
           <button className="active">
             <LayoutDashboard /> Overview
           </button>
-          <button onClick={() => notify("Patient queue is displayed here.")}>
-            <Users /> Patient queue
-          </button>
           <button
             onClick={() =>
-              notify("Reports are not connected in this prototype.")
+              document.getElementById("live-queue")?.scrollIntoView({ behavior: "smooth" })
             }
           >
-            <FileText /> Reports
-          </button>
-          <button onClick={() => notify("Settings are simulated.")}>
-            <Settings /> Settings
+            <Users /> Patient queue
           </button>
         </nav>
         <div className="staff-user">
-          <div className="avatar">RK</div>
+          <div className="avatar">{initials(userName)}</div>
           <div>
-            <b>Reception · Rahul</b>
+            <b>{userName}</b>
             <small>Staff workspace</small>
           </div>
           <button onClick={onLogout} title="Log out" aria-label="Log out">
@@ -1622,24 +1407,24 @@ function Staff({
       <main className="staff-main">
         <header className="dash-head">
           <div>
-            <span className="eyebrow">WEDNESDAY, 18 NOVEMBER 2026</span>
-            <h2>Good morning, {userName || "Rahul"}</h2>
+            <span className="eyebrow">{today.toUpperCase()}</span>
+            <h2>Hello, {userName}</h2>
             <p>Here’s your daily overview. Let's make care connected.</p>
           </div>
-          <span className="user-chip">RK</span>
+          <span className="user-chip">{initials(userName)}</span>
         </header>
         <div className="stats">
           <Stat
             icon={<Users />}
-            label="Today's patients"
-            value={String(all.length).padStart(2, "0")}
+            label="Patients in queue today"
+            value={q ? pad2(Object.values(q).reduce((a, b) => a + b, 0)) : "--"}
           />
           <Stat
             icon={<Clock3 />}
             label="Intakes awaiting review"
             value={intakes ? String(intakes.total).padStart(2, "0") : "--"}
           />
-          <Stat icon={<CheckCircle2 />} label="Completed visits" value="02" />
+          <Stat icon={<CheckCircle2 />} label="Completed visits" value={q ? pad2(q.completed) : "--"} />
         </div>
         {canReview && (
           <section className="queue">
@@ -1689,260 +1474,14 @@ function Staff({
             </div>
           </section>
         )}
-        <section className="queue">
-          <div className="section-title">
-            <div>
-              <span className="eyebrow">LIVE QUEUE</span>
-              <h3>Demo patient queue</h3>
-            </div>
-            <Btn
-              kind="outline"
-              onClick={() => {
-                setQuery("");
-                setFilter("All");
-              }}
-            >
-              Clear filters
-            </Btn>
-          </div>
-          <div className="queue-tools">
-            <div className="search">
-              <Search />
-              <input
-                placeholder="Search patient name, token or ID"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              {["All", "Waiting", "Checked-in", "Completed"].map((x) => (
-                <option>{x}</option>
-              ))}
-            </select>
-          </div>
-          <div className="queue-table">
-            <div className="queue-row queue-head">
-              <span>Token</span>
-              <span>Patient name</span>
-              <span>Intake</span>
-              <span>Doctor</span>
-              <span>Status</span>
-              <span>Action</span>
-            </div>
-            {patients.map((p) => (
-              <div className="queue-row">
-                <b>{p.id}</b>
-                <span>
-                  <b>{p.name}</b>
-                  <small>
-                    {p.age} yrs · {p.gender}
-                  </small>
-                </span>
-                <span>{p.intake}</span>
-                <span>{p.doctor}</span>
-                <Status value={p.status} />
-                <button className="link" onClick={() => choose(p)}>
-                  Open <ArrowRight />
-                </button>
-              </div>
-            ))}
-            {!patients.length && (
-              <p className="empty">No patients match your search.</p>
-            )}
-          </div>
-        </section>
-        <p className="notice">
-          <ShieldCheck /> Patient information shown here is sample data for the
-          frontend prototype.
-        </p>
-      </main>
-    </div>
-  );
-}
-function Stat({ icon, label, value }) {
-  return (
-    <div className="stat">
-      <span>{icon}</span>
-      <div>
-        <small>{label}</small>
-        <b>{value}</b>
-      </div>
-    </div>
-  );
-}
-function Workspace({
-  patient: p,
-  editName,
-  setEditName,
-  editStatus,
-  setEditStatus,
-  editing,
-  setEditing,
-  update,
-  go,
-  notify,
-  note,
-  setNote,
-  modal,
-}) {
-  return (
-    <div className="workspace">
-      <aside className="staff-sidebar compact">
-        <Brand go={go} />
-        <nav>
-          <button onClick={() => go("staff")}>
-            <LayoutDashboard />
-          </button>
-          <button className="active">
-            <Users />
-          </button>
-          <button>
-            <FileText />
-          </button>
-          <button>
-            <Settings />
-          </button>
-        </nav>
-      </aside>
-      <main>
-        <header className="dash-head">
-          <div>
-            <span className="eyebrow">RECEPTION / PATIENT QUEUE</span>
-            <h2>Patient workspace</h2>
-            <p>Wednesday, 18 November · Today's patient queue</p>
-          </div>
-          <div className="workspace-links">
-            <button className="link" onClick={() => go("staff")}>
-              <ArrowLeft /> Back to queue
-            </button>
-            <button className="link" onClick={() => setEditing(!editing)}>
-              {editing ? "Cancel" : "Edit full screen"}
-            </button>
-          </div>
-        </header>
-        <div className="workspace-grid">
-          <section className="workspace-card">
-            <div className="patient-title">
-              <div>
-                <span className="eyebrow">PATIENT DETAILS / TOKEN {p.id}</span>
-                {editing ? (
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
-                ) : (
-                  <h1>{p.name}</h1>
-                )}
-                <p>
-                  {p.age} yrs · {p.gender}
-                </p>
-              </div>
-              <Status value={p.status} />
-            </div>
-            <div className="workspace-details">
-              <div>
-                <span className="eyebrow">VISIT DETAILS</span>
-                <Info label="Token number" value={p.id} />
-                <Info label="Appointment time" value={p.time} />
-                <div className="info">
-                  <small>Current status</small>
-                  {editing ? (
-                    <select
-                      value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value)}
-                    >
-                      {["Waiting", "Checked-in", "Completed"].map((x) => (
-                        <option>{x}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Status value={p.status} />
-                  )}
-                </div>
-              </div>
-              <div>
-                <span className="eyebrow">ASSIGNED DOCTOR</span>
-                <h3>{p.doctor}</h3>
-                <p>{p.dept}</p>
-                <small>Assigned to this department's queue</small>
-              </div>
-            </div>
-            <div className="workspace-section">
-              <span className="eyebrow">AI INTAKE</span>
-              <p className="intake-done">
-                <CheckCircle2 /> {p.intake}
-              </p>
-              <p>{p.symptoms}</p>
-              <button className="link" onClick={() => modal("intake")}>
-                View intake summary <ArrowRight />
-              </button>
-            </div>
-            <div className="workspace-section">
-              <span className="eyebrow">STAFF NOTES</span>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Add an internal note for the care team..."
-              />
-              <Btn
-                kind="outline"
-                onClick={() =>
-                  notify(
-                    note.trim()
-                      ? "Staff note added (demo)."
-                      : "Write a note first.",
-                  )
-                }
-              >
-                Save note
-              </Btn>
-            </div>
-            {editing && (
-              <Btn
-                onClick={() => {
-                  update({ name: editName, status: editStatus });
-                  setEditing(false);
-                  notify("Patient details updated.");
-                }}
-              >
-                Save changes <Check />
-              </Btn>
-            )}
-          </section>
-          <aside>
-            <div className="side-card">
-              <span className="eyebrow">QUICK ACTIONS</span>
-              <button
-                onClick={() => {
-                  update({ status: "Checked-in" });
-                  notify("Patient checked in.");
-                }}
-              >
-                <CheckCircle2 /> Mark as checked-in
-              </button>
-              <button
-                onClick={() => {
-                  update({ status: "Completed" });
-                  notify("Visit marked completed.");
-                }}
-              >
-                <Check /> Complete visit
-              </button>
-              <button onClick={() => notify("Care team notified (demo).")}>
-                <Phone /> Notify care team
-              </button>
-            </div>
-            <div className="side-card">
-              <span className="eyebrow">REVIEW REMINDER</span>
-              <p>
-                AI intake information should be reviewed and confirmed by
-                authorised medical staff before any clinical decision.
-              </p>
-              <p className="notice">
-                <ShieldCheck /> Staff review required
-              </p>
-            </div>
-          </aside>
+        <div id="live-queue">
+          <QueuePanel
+            eyebrow="LIVE QUEUE · TODAY"
+            title="Patient queue"
+            emptyText="Nobody is in the queue yet. Confirmed intakes appear here automatically."
+            onOpen={onOpen}
+            notify={notify}
+          />
         </div>
       </main>
     </div>
@@ -2235,24 +1774,6 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
           </Btn>
         </div>
       )}
-    </div>
-  );
-}
-function ModalBox({ title, children, close }) {
-  return (
-    <div
-      className="overlay"
-      onClick={(e) => e.target === e.currentTarget && close()}
-    >
-      <section>
-        <header>
-          <h3>{title}</h3>
-          <button onClick={close}>
-            <X />
-          </button>
-        </header>
-        {children}
-      </section>
     </div>
   );
 }
