@@ -1,4 +1,16 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.example
 .DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local AI model weights and uploaded audio/files (never commit)
+ai_models/
+storage/
