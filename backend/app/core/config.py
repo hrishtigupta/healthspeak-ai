@@ -32,6 +32,19 @@ class Settings(BaseSettings):
     # Comma-separated, e.g. "http://localhost:5173,http://127.0.0.1:5173"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # --- Authentication ---
+    session_ttl_minutes: int = 480  # 8 hours, roughly one hospital shift
+    login_max_failed_attempts: int = 5
+    login_lockout_minutes: int = 15
+    # Country code added to bare 10-digit phone numbers ("9876543210" -> "+919876543210").
+    default_phone_country_code: str = "91"
+
+    # Password for the synthetic demo users created by `python -m app.seed`.
+    seed_demo_password: str | None = None
+
+    # Database used by pytest. Defaults to DATABASE_URL with the name "<db>_test".
+    test_database_url: str | None = None
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

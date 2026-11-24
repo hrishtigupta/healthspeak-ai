@@ -8,11 +8,13 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import get_settings
 from app.database.base import Base
 
-# Import model modules here as they are added (Phase 2+) so autogenerate sees them, e.g.:
-# from app.database import models  # noqa: F401
+# Importing the models package registers every table on Base.metadata for autogenerate.
+from app.database import models  # noqa: E402,F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
+# Tests pass their own database URL via config.attributes; otherwise use .env settings.
+_url = config.attributes.get("database_url") or get_settings().database_url
+config.set_main_option("sqlalchemy.url", _url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

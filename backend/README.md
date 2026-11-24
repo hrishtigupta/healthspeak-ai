@@ -1,9 +1,11 @@
-# HealthSpeak AI — Backend (Phase 1)
+# HealthSpeak AI — Backend
 
-FastAPI + PostgreSQL backend for HealthSpeak AI. Phase 1 contains only the
-skeleton: configuration, a database connection, migrations and health checks.
-There are **no users, patients or intake features yet** (they start in Phase 2),
-and the React frontend is **not connected** to this API yet.
+FastAPI + PostgreSQL backend for HealthSpeak AI.
+
+| Phase | Status |
+|---|---|
+| 1 — Skeleton, database, health checks | done |
+| 2 — Users, login/logout, roles, UI-language preference | done |
 
 ## What runs where
 
@@ -19,11 +21,19 @@ and the React frontend is **not connected** to this API yet.
 backend/
 ├── app/
 │   ├── main.py              # creates the FastAPI app, CORS, registers routers
-│   ├── core/config.py       # settings read from the repo-root .env file
+│   ├── seed.py              # creates synthetic demo users
+│   ├── core/
+│   │   ├── config.py        # settings read from the repo-root .env file
+│   │   ├── enums.py         # Role, UiLanguage
+│   │   ├── security.py      # Argon2id hashing, session tokens, phone/email normalising
+│   │   └── permissions.py   # get_current_user (401) and require_roles (403)
 │   ├── database/
-│   │   ├── base.py          # SQLAlchemy Base that future models inherit from
-│   │   └── session.py       # engine + get_db() per-request session
-│   └── routers/health.py    # GET /api/health and GET /api/health/db
+│   │   ├── base.py          # SQLAlchemy Base that every model inherits from
+│   │   ├── session.py       # engine + get_db() per-request session
+│   │   └── models/          # users, auth_sessions, audit_events
+│   ├── schemas/             # request/response shapes (validation)
+│   ├── services/            # business logic (auth, users, audit)
+│   └── routers/             # health, auth, users, admin_users
 ├── alembic/                 # database migrations (versions/ holds each change)
 ├── alembic.ini
 ├── tests/test_health.py
@@ -64,7 +74,23 @@ Use **PowerShell**, starting in the repository root
    ..\.venv\Scripts\python.exe -m alembic upgrade head
    ..\.venv\Scripts\python.exe -m alembic current
    ```
-   Success: the last line shows `0001 (head)`.
+   Success: the last line shows the newest revision followed by `(head)`.
+
+5. **Create the synthetic demo accounts** (still in `backend\`):
+   ```powershell
+   ..\.venv\Scripts\python.exe -m app.seed
+   ```
+   This uses `SEED_DEMO_PASSWORD` from `.env` for all four accounts:
+
+   | Role | Email | Phone |
+   |---|---|---|
+   | patient | `patient@example.com` | `9000000001` |
+   | doctor | `doctor@example.com` | `9000000002` |
+   | staff | `staff@example.com` | `9000000003` |
+   | admin | `admin@example.com` | `9000000004` |
+
+   These are made-up accounts for local development only. Running the command
+   again does nothing to accounts that already exist.
 
 ## Everyday commands (run from `backend\`)
 
@@ -81,6 +107,43 @@ With the API running, open in a browser:
 - <http://127.0.0.1:8000/api/health> → `{"status":"ok",...}`
 - <http://127.0.0.1:8000/api/health/db> → `{"status":"ok","database":"connected"}`
 - <http://127.0.0.1:8000/docs> → interactive API documentation
+
+## Trying login in the browser (`/docs`)
+
+1. Open <http://127.0.0.1:8000/docs>.
+2. `POST /api/auth/login` → **Try it out** → body
+   `{"identifier": "admin@example.com", "password": "<SEED_DEMO_PASSWORD>"}` → **Execute**.
+3. Copy `access_token` from the response, click **Authorize** (top right), paste it, **Authorize**.
+4. Now `GET /api/users/me` and `GET /api/admin/users` work. Log in as the patient
+   instead and `GET /api/admin/users` returns **403 Not permitted**.
+
+## API so far
+
+| Method & path | Who | Purpose |
+|---|---|---|
+| `GET /api/health`, `GET /api/health/db` | anyone | API / database up? |
+| `POST /api/auth/login` | anyone | `{identifier, password}` (email or phone) → token |
+| `POST /api/auth/logout` | logged in | Revokes the current token |
+| `GET /api/users/me` | logged in | Own profile |
+| `PATCH /api/users/me/preferences` | logged in | `{ui_language: "en" \| "hi" \| "ur"}` for this user only |
+| `GET /api/admin/users` | admin | List users (`?role=doctor&limit=50&offset=0`) |
+| `POST /api/admin/users` | admin | Create an account |
+
+How login works: the server returns a random token valid for
+`SESSION_TTL_MINUTES` (8 hours by default). Send it as
+`Authorization: Bearer <token>`. The database stores only a SHA-256 hash of it,
+so logout and deactivating a user take effect immediately. After 5 wrong
+passwords an account is locked for 15 minutes. Every failure returns the same
+`401 Invalid credentials` so nobody can probe which accounts exist. Logins,
+logouts, failed attempts, preference changes and account creation are written
+to the `audit_events` table (never passwords or tokens).
+
+## Tests
+
+`pytest` uses a separate database named `healthspeak_test` (created
+automatically). Tables there are emptied before every test, so your development
+data is never touched. The migration test briefly creates and deletes a scratch
+database `healthspeak_migration_test`.
 
 ## Stopping the database
 
