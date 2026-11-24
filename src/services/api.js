@@ -74,8 +74,8 @@ function messageFrom(data, status) {
 }
 
 // body: a plain object (sent as JSON) or FormData (sent as multipart, e.g. audio).
-export async function api(path, { method = "GET", body, auth = true, signal } = {}) {
-  const headers = { Accept: "application/json" };
+export async function api(path, { method = "GET", body, auth = true, signal, headers: extra } = {}) {
+  const headers = { Accept: "application/json", ...(extra || {}) };
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   const token = auth ? tokenStore.get() : null;

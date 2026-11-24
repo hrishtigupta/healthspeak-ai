@@ -1,5 +1,6 @@
 // Small shared UI building blocks (moved out of App.jsx so pages can reuse them).
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 export const Btn = ({ children, kind = "", ...p }) => (
@@ -39,8 +40,9 @@ export const QUEUE_STATUS = {
 };
 
 export const Status = ({ value }) => {
+  const { t } = useTranslation();
   const s = QUEUE_STATUS[value] || { label: value, tone: "wait" };
-  return <span className={"status " + s.tone}>{s.label}</span>;
+  return <span className={"status " + s.tone}>{t(`queue.${value}`, s.label)}</span>;
 };
 
 export function Stat({ icon, label, value }) {

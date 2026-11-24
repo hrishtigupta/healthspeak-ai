@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   ArrowLeft,
@@ -43,6 +44,7 @@ import {
   getConsent,
   LANGUAGE_CODES,
   GENDER_CODES,
+  updateMyLanguage,
 } from "./services/auth.js";
 import {
   openConversation,
@@ -69,10 +71,12 @@ import DoctorHome from "./pages/doctor/DoctorHome.jsx";
 import AdminHome from "./pages/admin/AdminHome.jsx";
 import VisitStatus from "./pages/patient/VisitStatus.jsx";
 import { staffDashboard } from "./services/visits.js";
-const GREETING = {
-  by: "doctor",
-  text: "Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?",
-};
+import i18n, { deviceLanguage, setDeviceLanguage, translateError } from "./i18n/index.js";
+import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
+import { kioskIdleSeconds, kioskKey, sendHeartbeat } from "./services/kiosk.js";
+// The greeting is shown in the reader's display language (it is not stored).
+const GREETING = { by: "doctor", key: "chat.greeting" };
+const NAME_BY_CODE = { en: "English", hi: "Hindi", ur: "Urdu" };
 // Server messages -> the chat bubble format the UI already uses.
 const toChat = (m) => ({
   by: m.sender === "patient" ? "patient" : "doctor",
@@ -85,6 +89,7 @@ const ROLE_LABELS = {
   admin: "Administrator",
 };
 export default function App() {
+  const { t } = useTranslation();
   const [page, S] = useState("home"),
     [role, R] = useState("Patient"),
     [email, E] = useState(""),
@@ -121,6 +126,20 @@ export default function App() {
     T(x);
     setTimeout(() => T(""), 3000);
   };
+  // Change the DISPLAY language: saved on the server for a logged-in user (only
+  // their own account), otherwise remembered for this device.
+  const changeUiLanguage = async (code) => {
+    i18n.changeLanguage(code);
+    if (user) {
+      try {
+        SetUser(await updateMyLanguage(code));
+      } catch (err) {
+        notify(translateError(err));
+      }
+    } else {
+      setDeviceLanguage(code);
+    }
+  };
 
   // Voice: record in the browser, transcribe on OUR server with the local model.
   // (The browser's built-in speech recognition sends audio to cloud services.)
@@ -136,14 +155,14 @@ export default function App() {
     if (listening) return stopRecorder();
     if (transcribing || !requirePatient()) return;
     if (!navigator.mediaDevices || typeof window.MediaRecorder === "undefined") {
-      notify("Recording is not supported in this browser. Please type your concern.");
+      notify(t("voice.notSupported"));
       return;
     }
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      notify("Microphone access was blocked. Allow the microphone, or type your concern instead.");
+      notify(t("voice.blocked"));
       return;
     }
     const mime =
@@ -167,7 +186,7 @@ export default function App() {
         V(t.text); // the patient reviews (and may edit) this before sending
         TranscriptionId(t.id);
       } catch (err) {
-        notify(err.message);
+        notify(translateError(err));
       } finally {
         Transcribing(false);
       }
@@ -184,23 +203,25 @@ export default function App() {
   };
   const login = async () => {
     if (!email.trim() || !password.trim())
-      return notify("Enter your email/mobile number and password.");
+      return notify(t("auth.needIdPassword"));
     if (busy) return;
     Busy(true);
     try {
       // The backend decides the role; the role buttons are only a hint.
       const u = await apiLogin(email, password);
       SetUser(u);
+      i18n.changeLanguage(u.ui_language); // this user's own display language
+      L(NAME_BY_CODE[u.ui_language] || "English"); // default speaking language
       P("");
       go({ patient: "dashboard", staff: "staff", doctor: "doctor", admin: "admin" }[u.role] || "home");
       const label = ROLE_LABELS[u.role] || u.role;
       notify(
         label === role
-          ? `Welcome, ${u.full_name}.`
-          : `Logged in as ${label}: ${u.full_name}.`,
+          ? t("common.welcomeName", { name: u.full_name })
+          : t("common.loggedInAs", { role: t(`roles.${u.role}`), name: u.full_name }),
       );
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     } finally {
       Busy(false);
     }
@@ -235,8 +256,9 @@ export default function App() {
     StaffIntakes(null);
     ReviewIntake(null);
     SummaryIntake(null);
+    i18n.changeLanguage(deviceLanguage()); // back to this device's language
     go("home");
-    notify("You have been logged out.");
+    notify(t("common.loggedOut"));
   };
   const openConsent = async () => {
     ConsentDoc(null);
@@ -244,16 +266,16 @@ export default function App() {
     try {
       ConsentDoc(await getConsent(LANGUAGE_CODES[pref] || "en"));
     } catch (err) {
-      ConsentDoc({ error: err.message });
+      ConsentDoc({ error: translateError(err) });
     }
   };
   // Only a logged-in patient can save a concern (it needs their profile + consent).
   const requirePatient = () => {
     if (user && user.role === "patient") return true;
     if (user) {
-      notify("Only patient accounts can submit a health concern.");
+      notify(t("chat.onlyPatients"));
     } else {
-      notify("Please log in or create an account so your concern can be saved for staff review.");
+      notify(t("chat.loginFirst"));
       go("login");
     }
     return false;
@@ -279,7 +301,7 @@ export default function App() {
       await postToIntake(message, "text");
       Msg("");
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     } finally {
       Sending(false);
     }
@@ -287,11 +309,11 @@ export default function App() {
   const voiceContinue = async () => {
     // Do not continue if no speech or text was entered
     if (!voice.trim()) {
-      notify("Please speak or enter your health concern first.");
+      notify(t("voice.speakFirst"));
       return;
     }
     if (listening || transcribing) {
-      notify("Please wait until the recording has been transcribed.");
+      notify(t("voice.waitTranscribe"));
       return;
     }
     if (!requirePatient() || sending) return;
@@ -304,7 +326,7 @@ export default function App() {
       TranscriptionId(null);
       go("chat");
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     } finally {
       Sending(false);
     }
@@ -314,19 +336,48 @@ export default function App() {
     try {
       if (cid) {
         await submitConversation(cid);
-        notify("Your concern has been sent for staff review.");
+        notify(t("chat.sent"));
       } else {
-        notify("Chat closed.");
+        notify(t("chat.closed"));
       }
     } catch (err) {
       // 422 = nothing was written yet; the empty chat simply stays open for later.
-      notify(err.status === 422 ? "Chat closed." : err.message);
+      notify(err.status === 422 ? t("chat.closed") : translateError(err));
       if (err.status !== 422) return;
     }
     ConvId(null);
     Msgs([GREETING]);
     go("dashboard");
   };
+  // ----- Kiosk mode (shared device opened with ?kiosk=KEY) -----
+  const [kiosk] = useState(() => kioskKey());
+  useEffect(() => {
+    if (!kiosk) return undefined;
+    const beat = () => sendHeartbeat(kiosk, i18n.language).catch(() => {});
+    beat();
+    const timer = setInterval(beat, 60000);
+    return () => clearInterval(timer);
+  }, [kiosk]);
+  // On a kiosk, log a person out after a period without any activity so the
+  // next person never sees their information.
+  useEffect(() => {
+    if (!kiosk || !user) return undefined;
+    const events = ["pointerdown", "keydown", "touchstart", "scroll"];
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        await doLogout();
+        notify(t("kiosk.idleLogout"));
+      }, kioskIdleSeconds() * 1000);
+    };
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [kiosk, user]);
   // Load real data when a page that shows it is opened.
   useEffect(() => {
     // Clear first so stale data is never shown while the fresh copy loads.
@@ -334,7 +385,7 @@ export default function App() {
       MyIntakeList(null);
       myIntakes()
         .then(MyIntakeList)
-        .catch((err) => notify(err.message));
+        .catch((err) => notify(translateError(err)));
     }
     if (page === "staff" && user && user.role === "staff") {
       StaffDash(null);
@@ -342,7 +393,7 @@ export default function App() {
       StaffIntakes(null);
       listIntakes("pending_review")
         .then((r) => StaffIntakes(r))
-        .catch((err) => notify(err.message));
+        .catch((err) => notify(translateError(err)));
     }
   }, [page, user]);
   const openReview = async (id) => {
@@ -352,7 +403,7 @@ export default function App() {
       ReviewIntake(intake);
       go("intake");
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     }
   };
   const reanalyse = async () => {
@@ -362,7 +413,7 @@ export default function App() {
       ReviewIntake(await analyseIntake(reviewIntake.id, "final_text"));
       notify("Summary re-created from the staff-reviewed text.");
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     } finally {
       Busy(false);
     }
@@ -379,7 +430,7 @@ export default function App() {
           : updated.translation_error || "Translation is still unavailable.",
       );
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     } finally {
       Busy(false);
     }
@@ -398,16 +449,16 @@ export default function App() {
       ReviewIntake(updated);
       notify(andConfirm ? "Intake confirmed." : "Correction saved. The previous text is kept in the history.");
     } catch (err) {
-      notify(err.message);
+      notify(translateError(err));
     } finally {
       Busy(false);
     }
   };
   const toastUI = toast && (
-    <div className="toast">
+    <div className="toast" role="status" aria-live="polite">
       <CheckCircle2 />
       {toast}
-      <button onClick={() => T("")}>
+      <button onClick={() => T("")} aria-label={t("common.close")}>
         <X />
       </button>
     </div>
@@ -419,36 +470,33 @@ export default function App() {
           <header className="topbar">
             <Brand go={go} />
             <nav>
-              <a href="#home">Home</a>
-              <a href="#features">Features</a>
-              <a href="#languages">Languages</a>
-              <a href="#faqs">FAQs</a>
-              <a href="#contact">Contact us</a>
+              <a href="#home">{t("home.nav.home")}</a>
+              <a href="#features">{t("home.nav.features")}</a>
+              <a href="#languages">{t("home.nav.languages")}</a>
+              <a href="#faqs">{t("home.nav.faqs")}</a>
+              <a href="#contact">{t("home.nav.contact")}</a>
             </nav>
-            <Btn onClick={() => go("login")}>Log in</Btn>
+            <LanguageSwitcher onChange={changeUiLanguage} />
+            <Btn onClick={() => go("login")}>{t("common.login")}</Btn>
           </header>
           <main className="landing" id="home">
             <section className="hero">
               <div>
                 <span className="eyebrow">
-                  <Sparkles /> Welcome to AI Health Assistant
+                  <Sparkles /> {t("home.eyebrow")}
                 </span>
                 <h1>
-                  Your Health,
+                  {t("home.titleA")}
                   <br />
-                  <em>Your Language.</em>
+                  <em>{t("home.titleB")}</em>
                 </h1>
-                <p>
-                   Share your health concerns with HealthSpeak AI in the language
-                    you are comfortable with. Your information will be organised
-                    for medical staff review.
-                </p>
+                <p>{t("home.intro")}</p>
                 <div className="actions">
                   <Btn onClick={() => go("login")}>
-                    Start Chatting Now <ArrowRight />
+                    {t("home.startChat")} <ArrowRight />
                   </Btn>
                   <Btn kind="outline" onClick={() => go("voice")}>
-                    <Mic /> Voice Input
+                    <Mic /> {t("home.voiceInput")}
                   </Btn>
                 </div>
               </div>
@@ -456,145 +504,113 @@ export default function App() {
                 <div className="hero-blob">
                   <div className="phone-art">
                     <MessageCircle />
-                    <b>
-                      How can we help
-                      <br />
-                      you today?
-                    </b>
+                    <b>{t("home.howHelp")}</b>
                     <span>∿ ∿ ∿</span>
                   </div>
                   <div className="doctor-art">
                     <Stethoscope />
-                    <b>Care in your language</b>
+                    <b>{t("home.careInLanguage")}</b>
                   </div>
                 </div>
                 <span className="float f1">
-                  <AudioLines /> Voice + Text
+                  <AudioLines /> {t("home.voiceText")}
                 </span>
                 <span className="float f2">
-                  <Languages /> Multiple languages
+                  <Languages /> {t("home.multiLang")}
                 </span>
               </div>
             </section>
             <section className="features" id="features">
               <article>
                 <AudioLines />
-                <b>Voice & Text</b>
-                <p>Speak or type your concern in the way that feels natural.</p>
+                <b>{t("home.f1t")}</b>
+                <p>{t("home.f1d")}</p>
               </article>
               <article>
                 <Languages />
-                <b>Multiple Languages</b>
-                <p>Communicate comfortably in your preferred language.</p>
+                <b>{t("home.f2t")}</b>
+                <p>{t("home.f2d")}</p>
               </article>
               <article>
                 <Clock3 />
-                <b>24/7 Availability</b>
-                <p>Start your intake whenever you need assistance.</p>
+                <b>{t("home.f3t")}</b>
+                <p>{t("home.f3d")}</p>
               </article>
             </section>
             <section className="how">
               <div>
-                <span className="eyebrow">A simpler first step</span>
+                <span className="eyebrow">{t("home.howEyebrow")}</span>
                 <h2>
-                  Better conversations.
+                  {t("home.howA")}
                   <br />
-                  <em>Better care.</em>
+                  <em>{t("home.howB")}</em>
                 </h2>
-                <p>
-                  Share what you are experiencing. HealthSpeak AI helps
-                  structure your information so the medical team can review it.
-                </p>
+                <p>{t("home.howIntro")}</p>
               </div>
               <div className="how-cards">
                 <article>
                   <i>01</i>
-                  <h3>Choose your language</h3>
-                  <p>
-                    Start with voice or text in a language you are comfortable
-                    with.
-                  </p>
+                  <h3>{t("home.s1t")}</h3>
+                  <p>{t("home.s1d")}</p>
                 </article>
                 <article>
                   <i>02</i>
-                  <h3>Share your concern</h3>
-                  <p>
-                    Describe your symptoms and answer a few simple questions.
-                  </p>
+                  <h3>{t("home.s2t")}</h3>
+                  <p>{t("home.s2d")}</p>
                 </article>
                 <article>
                   <i>03</i>
-                  <h3>Staff review</h3>
-                  <p>
-                    Your structured intake is routed to the appropriate medical
-                    team.
-                  </p>
+                  <h3>{t("home.s3t")}</h3>
+                  <p>{t("home.s3d")}</p>
                 </article>
               </div>
             </section>
             <section className="cta" id="languages">
               <div>
-                <h2>Care begins with being understood.</h2>
-                <p>Choose your language and start a conversation.</p>
+                <h2>{t("home.ctaTitle")}</h2>
+                <p>{t("home.ctaText")}</p>
               </div>
               <Btn onClick={() => go("login")}>
-                Get started <ArrowRight />
+                {t("home.getStarted")} <ArrowRight />
               </Btn>
             </section>
             <section className="faq-section" id="faqs">
-              <span className="eyebrow">FREQUENTLY ASKED QUESTIONS</span>
-              <h2>Good to know</h2>
+              <span className="eyebrow">{t("home.faqEyebrow")}</span>
+              <h2>{t("home.faqTitle")}</h2>
               <div>
-                <article>
-                  <b>Can I use my preferred language?</b>
-                  <p>
-                    Yes. Select your preferred language in the voice or chat intake
-                    screen. Voice transcription depends on browser speech recognition
-                    support and language availability.
-                  </p>
-                </article>
-                <article>
-                  <b>Does the AI provide a medical diagnosis?</b>
-                  <p>
-                    No. HealthSpeak AI structures the information you share for
-                    review by the medical team. The demo does not provide
-                    clinical decisions.
-                  </p>
-                </article>
-                <article>
-                  <b>Is my information stored?</b>
-                  <p>
-                    No. This frontend prototype uses temporary in-memory sample
-                    data and has no backend or database.
-                  </p>
-                </article>
+                {["1", "2", "3"].map((n) => (
+                  <article key={n}>
+                    <b>{t(`home.q${n}`)}</b>
+                    <p>{t(`home.a${n}`)}</p>
+                  </article>
+                ))}
               </div>
             </section>
             <footer id="contact">
               <Brand go={go} />
-              <span>
-                © 2026 HealthSpeak AI · Frontend demonstration prototype
-              </span>
-              <a href="#faqs">FAQs</a>
+              <span>{t("home.footer")}</span>
+              <a href="#faqs">{t("home.nav.faqs")}</a>
             </footer>
           </main>
         </>
       )}
       {page === "login" && (
-        <Auth go={go}>
+        <Auth go={go} onLanguage={changeUiLanguage}>
           <div className="auth-form">
             <button className="back" onClick={() => go("home")}>
-              <ArrowLeft /> Back to home
+              <ArrowLeft /> {t("common.backHome")}
             </button>
-            <span className="eyebrow">YOUR HEALTH, YOUR LANGUAGE</span>
-            <h2>Welcome Back 👋</h2>
-            <p>Please select your role and enter your details to log in.</p>
-            <b className="label-title">I am logging in as</b>
+            <span className="eyebrow">{t("auth.eyebrow")}</span>
+            <h2>{t("auth.welcomeBack")}</h2>
+            <p>{t("auth.selectRole")}</p>
+            <b className="label-title">{t("auth.loggingInAs")}</b>
             <div className="roles">
               {["Patient", "Doctor", "Staff"].map((r) => (
                 <button
+                  key={r}
                   className={role === r ? "chosen" : ""}
                   onClick={() => R(r)}
+                  aria-pressed={role === r}
                 >
                   {r === "Patient" ? (
                     <UserRound />
@@ -603,59 +619,57 @@ export default function App() {
                   ) : (
                     <Users />
                   )}
-                  {r}
+                  {t(`roles.${r.toLowerCase()}`)}
                 </button>
               ))}
             </div>
             <Field
-              label="Email or Phone Number"
-              placeholder="Enter your email or mobile number"
+              label={t("auth.idLabel")}
+              placeholder={t("auth.idPlaceholder")}
               value={email}
               onChange={(e) => E(e.target.value)}
             />
             <label className="field">
-              <span>Password</span>
+              <span>{t("auth.password")}</span>
               <div className="pass">
                 <input
                   type={showPass ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder={t("auth.passwordPlaceholder")}
                   value={password}
                   onChange={(e) => P(e.target.value)}
                 />
-                <button onClick={() => SP(!showPass)}>
+                <button
+                  type="button"
+                  onClick={() => SP(!showPass)}
+                  aria-label={t("auth.showPassword")}
+                >
                   {showPass ? <EyeOff /> : <Eye />}
                 </button>
               </div>
             </label>
             <div className="forgot">
-              <button onClick={() => Modal("forgot")}>Forgot Password?</button>
+              <button onClick={() => Modal("forgot")}>{t("auth.forgot")}</button>
             </div>
             <Btn onClick={login} disabled={busy}>
-              {busy ? "Logging in..." : "Log in"}
+              {busy ? t("auth.loggingIn") : t("common.login")}
             </Btn>
             <p className="switch">
-              Don't have an account?{" "}
-              <button onClick={() => go("signup")}>Sign up</button>
+              {t("auth.noAccount")}{" "}
+              <button onClick={() => go("signup")}>{t("common.signup")}</button>
             </p>
-            <small className="demo-note">
-              Log in with your HealthSpeak account. Synthetic demo accounts
-              for local testing are listed in backend/README.md.
-            </small>
+            <small className="demo-note">{t("auth.demoNote")}</small>
           </div>
         </Auth>
       )}
       {page === "signup" && (
-        <Auth go={go}>
+        <Auth go={go} onLanguage={changeUiLanguage}>
           <form
             className="auth-form signup"
             onSubmit={async (e) => {
               e.preventDefault();
               if (!name || !mobile || !dob || !gender || password.length < 8)
-                return notify(
-                  "Complete all fields. Password needs at least 8 characters.",
-                );
-              if (!agreed)
-                return notify("Please read and accept the consent statement.");
+                return notify(t("auth.completeAll"));
+              if (!agreed) return notify(t("auth.acceptConsent"));
               if (busy) return;
               Busy(true);
               try {
@@ -671,8 +685,8 @@ export default function App() {
                   date_of_birth: dob,
                   gender: GENDER_CODES[gender],
                   password,
-                  ui_language: lang,
-                  preferred_language: lang,
+                  ui_language: i18n.language, // display language chosen on this screen
+                  preferred_language: lang, // language they will speak in
                   consent: {
                     version: consent.version,
                     granted: true,
@@ -680,76 +694,81 @@ export default function App() {
                   },
                 });
                 SetUser(data.user);
+                L(pref);
                 clearPersonalForms();
                 go("dashboard");
-                notify("Account created successfully.");
+                notify(t("auth.created"));
               } catch (err) {
-                notify(err.message);
+                notify(translateError(err));
               } finally {
                 Busy(false);
               }
             }}
           >
             <button type="button" className="back" onClick={() => go("home")}>
-              <ArrowLeft /> Back to home
+              <ArrowLeft /> {t("common.backHome")}
             </button>
-            <span className="eyebrow">JOIN HEALTHSPEAK AI</span>
-            <h2>Create your account</h2>
-            <p>Join as a patient. Make care more connected.</p>
+            <span className="eyebrow">{t("auth.joinEyebrow")}</span>
+            <h2>{t("auth.createTitle")}</h2>
+            <p>{t("auth.createText")}</p>
             <label className="field">
-              <span>Preferred Language (AI Voice & Text)</span>
+              <span>{t("auth.speakingLanguage")}</span>
               <select value={pref} onChange={(e) => Pref(e.target.value)}>
                 {/* The backend supports English, Hindi and Urdu. */}
                 {Object.keys(LANGUAGE_CODES).map((x) => (
-                  <option key={x}>{x}</option>
+                  <option key={x} value={x}>
+                    {t(`lang.${LANGUAGE_CODES[x]}`)}
+                  </option>
                 ))}
               </select>
             </label>
             <Field
-              label="Full Name"
-              placeholder="e.g. Ankit Kumar"
+              label={t("auth.fullName")}
+              placeholder={t("auth.fullNamePh")}
               value={name}
               onChange={(e) => N(e.target.value)}
               required
             />
             <Field
-              label="Mobile Number"
-              placeholder="+91 Enter your mobile number"
+              label={t("auth.mobile")}
+              placeholder={t("auth.mobilePh")}
               value={mobile}
               onChange={(e) => M(e.target.value)}
               required
             />
             <div className="two">
               <Field
-                label="Date of Birth"
+                label={t("auth.dob")}
                 type="date"
                 value={dob}
                 onChange={(e) => D(e.target.value)}
                 required
               />
               <label className="field">
-                <span>Gender</span>
+                <span>{t("auth.gender")}</span>
                 <select
                   value={gender}
                   onChange={(e) => G(e.target.value)}
                   required
                 >
-                  <option value="">Select</option>
+                  <option value="">{t("auth.select")}</option>
                   {["Female", "Male", "Other", "Prefer not to say"].map((x) => (
-                    <option>{x}</option>
+                    <option key={x} value={x}>
+                      {t(`gender.${x}`)}
+                    </option>
                   ))}
                 </select>
               </label>
             </div>
             <label className="field">
-              <span>Create Password</span>
+              <span>{t("auth.createPassword")}</span>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => P(e.target.value)}
                 minLength="8"
                 required
-                placeholder="At least 8 characters"
+                placeholder={t("auth.passwordMin")}
               />
             </label>
             <label className="check">
@@ -759,18 +778,18 @@ export default function App() {
                 onChange={(e) => Agreed(e.target.checked)}
                 required
               />{" "}
-              I have read and agree to the{" "}
+              {t("auth.agreeA")}{" "}
               <button type="button" className="link" onClick={openConsent}>
-                consent statement
+                {t("auth.consentLink")}
               </button>
             </label>
             <Btn type="submit" disabled={busy}>
-              {busy ? "Creating account..." : "Create Account"}
+              {busy ? t("auth.creating") : t("auth.createAccount")}
             </Btn>
             <p className="switch">
-              Already have an account?{" "}
+              {t("auth.haveAccount")}{" "}
               <button type="button" onClick={() => go("login")}>
-                Log in
+                {t("common.login")}
               </button>
             </p>
           </form>
@@ -780,25 +799,26 @@ export default function App() {
         <div className="voice-screen">
           <header>
             <Brand go={go} />
+            <LanguageSwitcher onChange={changeUiLanguage} />
             <Btn kind="ghost" onClick={() => go("chat")}>
-              Skip to text chat <ArrowRight />
+              {t("voice.skip")} <ArrowRight />
             </Btn>
           </header>
           <div className="voice-center">
-            <span className="eyebrow">VOICE INTAKE</span>
+            <span className="eyebrow">{t("voice.eyebrow")}</span>
             <h2>
               {listening
-                ? "Listening..."
+                ? t("voice.listening")
                 : transcribing
-                  ? "Writing down your words..."
-                  : "Speak in your language"}
+                  ? t("voice.writing")
+                  : t("voice.speak")}
             </h2>
             <p>
               {listening
-                ? "Listening for your concern. Tap the microphone when finished."
+                ? t("voice.listeningText")
                 : transcribing
-                  ? "This can take a few seconds."
-                  : "Press the microphone and tell us what you are experiencing."}
+                  ? t("voice.writingText")
+                  : t("voice.pressMic")}
             </p>
             <div className={"sound " + (listening ? "on" : "")}>
               <i />
@@ -812,19 +832,24 @@ export default function App() {
             <textarea
               value={voice}
               onChange={(e) => V(e.target.value)}
-              placeholder="Your words will appear here. You can also type."
+              placeholder={t("voice.placeholder")}
+              aria-label={t("voice.placeholder")}
               dir="auto"
             />
             <div className="mic-controls">
-              <button onClick={() => Modal("voicehelp")}>?</button>
+              <button onClick={() => Modal("voicehelp")} aria-label={t("voice.help")}>
+                ?
+              </button>
               <button
                 className={"mic " + (listening ? "recording" : "")}
                 onClick={toggleListening}
+                aria-label={t("voice.mic")}
+                aria-pressed={listening}
               >
                 {listening ? <AudioLines /> : <Mic />}
               </button>
               <button
-                aria-label="Clear"
+                aria-label={t("voice.clear")}
                 onClick={() => {
                   stopRecorder(true);
                   V("");
@@ -836,22 +861,20 @@ export default function App() {
             </div>
             <div className="voice-bottom">
               <label>
-                <Languages /> Language{" "}
+                <Languages /> {t("lang.speaking")}{" "}
                 <select value={language} onChange={(e) => L(e.target.value)}>
                   {Object.keys(LANGUAGE_CODES).map((x) => (
-                    <option key={x}>{x}</option>
+                    <option key={x} value={x}>
+                      {t(`lang.${LANGUAGE_CODES[x]}`)}
+                    </option>
                   ))}
                 </select>
               </label>
               <Btn onClick={voiceContinue}>
-                Continue to chat <ArrowRight />
+                {t("voice.continue")} <ArrowRight />
               </Btn>
             </div>
-            <small className="demo-note">
-                Your recording is turned into text on the hospital's own
-                HealthSpeak server, not by an outside service, and the audio is
-                deleted afterwards. Please check the text before continuing.
-            </small>
+            <small className="demo-note">{t("voice.privacy")}</small>
           </div>
         </div>
       )}
@@ -861,9 +884,10 @@ export default function App() {
         <Brand go={go}/>
         <div>
             <span className="online-dot"/>
-            HealthSpeak AI Intake Assistant
+            {t("chat.assistant")}
+            <LanguageSwitcher onChange={changeUiLanguage} />
             <Btn kind="danger" onClick={()=>Modal('endchat')}>
-            End Chat
+            {t("chat.endChat")}
             </Btn>
         </div>
         </header>
@@ -874,42 +898,35 @@ export default function App() {
                 <b>HealthSpeak AI</b>
                 <small>
                 <span className="online-dot"/>
-                AI Intake Assistant
+                {t("chat.assistantShort")}
                 </small>
             </div>
             </div>
             <div className="messages">
-              {messages.map((m) => (
-                <div className={"message " + m.by}>
+              {messages.map((m, i) => (
+                <div className={"message " + m.by} key={i}>
                   <div className="avatar">
-                    {m.by === "patient" ? "You" : "HS"}
+                    {m.by === "patient" ? t("common.you") : "HS"}
                   </div>
-                  <p>{m.text}</p>
+                  <p dir="auto">{m.key ? t(m.key) : m.text}</p>
                 </div>
               ))}
             </div>
             <div className="composer">
               <div className="compose-tools">
-                <button
-                  onClick={() => document.getElementById("attach").click()}
+                <select
+                  value={language}
+                  onChange={(e) => L(e.target.value)}
+                  aria-label={t("lang.speaking")}
+                  title={t("lang.speaking")}
                 >
-                  <Paperclip />
-                </button>
-                <input
-                  id="attach"
-                  type="file"
-                  hidden
-                  onChange={(e) =>
-                    e.target.files[0] &&
-                    notify(e.target.files[0].name + " attached")
-                  }
-                />
-                <select value={language} onChange={(e) => L(e.target.value)}>
                   {Object.keys(LANGUAGE_CODES).map((x) => (
-                    <option key={x}>{x}</option>
+                    <option key={x} value={x}>
+                      {t(`lang.${LANGUAGE_CODES[x]}`)}
+                    </option>
                   ))}
                 </select>
-                <button onClick={() => go("voice")}>
+                <button onClick={() => go("voice")} aria-label={t("chat.voice")}>
                   <Mic />
                 </button>
               </div>
@@ -918,15 +935,15 @@ export default function App() {
                   value={message}
                   onChange={(e) => Msg(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && send()}
-                  placeholder="Type your message here..."
+                  placeholder={t("chat.placeholder")}
+                  aria-label={t("chat.placeholder")}
+                  dir="auto"
                 />
-                <button onClick={send} disabled={sending} aria-label="Send">
+                <button onClick={send} disabled={sending} aria-label={t("chat.send")}>
                   <Send />
                 </button>
               </div>
-              <small>
-                Medical staff review information before care decisions.
-              </small>
+              <small>{t("chat.footer")}</small>
             </div>
           </main>
         </div>
@@ -934,6 +951,7 @@ export default function App() {
       {page === "doctor" && user && (
         <DoctorHome
           go={go}
+          onLanguage={changeUiLanguage}
           notify={notify}
           userName={user.full_name}
           onLogout={doLogout}
@@ -944,13 +962,18 @@ export default function App() {
         />
       )}
       {page === "admin" && user && (
-        <AdminHome go={go} notify={notify} userName={user.full_name} onLogout={doLogout} />
+        <AdminHome
+          go={go}
+          onLanguage={changeUiLanguage}
+          notify={notify}
+          userName={user.full_name}
+          onLogout={doLogout}
+        />
       )}
       {page === "dashboard" && (
         <PatientDashboard
           go={go}
-          language={language}
-          setLanguage={L}
+          onLanguage={changeUiLanguage}
           intakes={myIntakeList}
           onView={(intake) => {
             SummaryIntake(intake);
@@ -965,22 +988,22 @@ export default function App() {
         <div className="summary">
           <header>
             <div>
-              <h2>Your submitted concern</h2>
+              <h2>{t("summary.title")}</h2>
               <b>{formatDate(summaryIntake.created_at)}</b>
             </div>
             <Btn kind="outline" onClick={() => go("dashboard")}>
-              <ArrowLeft /> Back
+              <ArrowLeft /> {t("common.back")}
             </Btn>
           </header>
           <main>
             <div className="quote">
-              <div className="avatar">You</div>
+              <div className="avatar">{t("common.you")}</div>
               <blockquote dir="auto">“{summaryIntake.original_text}”</blockquote>
             </div>
             <section className="structured">
               <div className="section-title">
                 <h3>
-                  <ClipboardList /> Intake status
+                  <ClipboardList /> {t("summary.status")}
                 </h3>
                 <span
                   className={
@@ -988,37 +1011,36 @@ export default function App() {
                     (summaryIntake.review_status === "confirmed" ? "done" : "wait")
                   }
                 >
-                  {REVIEW_LABELS[summaryIntake.review_status]}
+                  {t(`review.${summaryIntake.review_status}`)}
                 </span>
               </div>
               <div className="summary-grid">
                 <Info
-                  label="Language you used"
-                  value={LANGUAGE_NAMES[summaryIntake.original_language]}
+                  label={t("summary.languageUsed")}
+                  value={t(`lang.${summaryIntake.original_language}`)}
                 />
                 <Info
-                  label="Submitted"
+                  label={t("common.submitted")}
                   value={formatDate(summaryIntake.created_at)}
                 />
                 <Info
-                  label="Reviewed by staff"
+                  label={t("summary.reviewedBy")}
                   value={
                     summaryIntake.reviewed_at
                       ? formatDate(summaryIntake.reviewed_at)
-                      : "Not yet"
+                      : t("common.notYet")
                   }
                 />
                 <Info
-                  label="Department"
+                  label={t("common.department")}
                   value={
                     summaryIntake.confirmed_department_name ||
-                    "Assigned by staff after review"
+                    t("common.assignedAfterReview")
                   }
                 />
               </div>
               <p className="disclaimer">
-                <ShieldCheck /> HealthSpeak AI does not diagnose or prescribe.
-                Medical staff review the information you share.
+                <ShieldCheck /> {t("summary.disclaimer")}
               </p>
             </section>
           </main>
@@ -1034,6 +1056,7 @@ export default function App() {
           canReview={Boolean(user && user.role === "staff")}
           onReview={openReview}
           dash={staffDash}
+          onLanguage={changeUiLanguage}
           onOpen={(id) => {
             VisitId(id);
             go("workspace");
@@ -1063,46 +1086,26 @@ export default function App() {
         />
       )}
       {modal === "forgot" && (
-        <ModalBox title="Reset your password" close={() => Modal("")}>
-          <p>
-            Enter your registered email or mobile number. Reset is simulated in
-            this demo.
-          </p>
-          <Field
-            label="Email or mobile number"
-            value={email}
-            onChange={(e) => E(e.target.value)}
-            placeholder="Registered email or phone"
-          />
-          <Btn
-            onClick={() => {
-              if (!email.trim())
-                return notify("Enter your email or mobile number.");
-              Modal("");
-              notify("Password reset instructions sent (demo).");
-            }}
-          >
-            Send reset instructions
-          </Btn>
+        <ModalBox title={t("auth.forgotTitle")} close={() => Modal("")}>
+          <p>{t("auth.forgotText")}</p>
+          <Btn onClick={() => Modal("")}>{t("common.close")}</Btn>
         </ModalBox>
       )}
       {modal === "consent" && (
         <ModalBox
-          title={(consentDoc && consentDoc.title) || "Consent statement"}
+          title={(consentDoc && consentDoc.title) || t("auth.consentTitle")}
           close={() => Modal("")}
         >
           {!consentDoc ? (
-            <p>Loading...</p>
+            <p>{t("common.loading")}</p>
           ) : consentDoc.error ? (
             <p>{consentDoc.error}</p>
           ) : (
             <>
               <p dir="auto">{consentDoc.text}</p>
               <p className="demo-note">
-                Version {consentDoc.version}
-                {consentDoc.is_draft
-                  ? " · Draft wording pending hospital review"
-                  : ""}
+                {t("auth.version", { v: consentDoc.version })}
+                {consentDoc.is_draft ? ` · ${t("auth.draft")}` : ""}
               </p>
               <Btn
                 onClick={() => {
@@ -1110,46 +1113,37 @@ export default function App() {
                   Modal("");
                 }}
               >
-                I agree
+                {t("auth.iAgree")}
               </Btn>
             </>
           )}
         </ModalBox>
       )}
       {modal === "endchat" && (
-        <ModalBox title="End this conversation?" close={() => Modal("")}>
-          <p>
-            Your intake conversation will be closed. You can still view your
-            consultation history.
-          </p>
+        <ModalBox title={t("chat.endTitle")} close={() => Modal("")}>
+          <p>{t("chat.endText")}</p>
           <div className="actions">
             <Btn kind="outline" onClick={() => Modal("")}>
-              Continue chat
+              {t("chat.continueChat")}
             </Btn>
-            <Btn
-              onClick={endChat}
-            >
-              End chat
-            </Btn>
+            <Btn onClick={endChat}>{t("chat.endAndSend")}</Btn>
           </div>
         </ModalBox>
       )}
       {modal === "voicehelp" && (
-        <ModalBox title="Using voice input" close={() => Modal("")}>
-          <p>1. Choose your preferred language.</p>
-          <p>2. Tap the microphone and speak clearly about your concern.</p>
-          <p>3. Review the transcribed text, then continue to chat.</p>
-          <p className="demo-note">
-            Allow microphone access when your browser asks for permission.
-            Your recording is processed on the hospital's own server.
-          </p>
+        <ModalBox title={t("voice.helpTitle")} close={() => Modal("")}>
+          <p>{t("voice.help1")}</p>
+          <p>{t("voice.help2")}</p>
+          <p>{t("voice.help3")}</p>
+          <p className="demo-note">{t("voice.helpNote")}</p>
         </ModalBox>
       )}
       {toastUI}
     </div>
   );
 }
-function Auth({ children, go }) {
+function Auth({ children, go, onLanguage }) {
+  const { t } = useTranslation();
   return (
     <div className="auth-layout">
       <aside className="auth-aside">
@@ -1163,35 +1157,38 @@ function Auth({ children, go }) {
         </div>
         <div className="aside-copy">
           <h1>
-            Your Health,
+            {t("auth.asideA")}
             <br />
-            <em>Your Language.</em>
+            <em>{t("auth.asideB")}</em>
           </h1>
           <p>
-            Bringing people and care closer.
+            {t("auth.asideText1")}
             <br />
-            Powered by AI. Connected through language.
+            {t("auth.asideText2")}
           </p>
           <div>
-            <b>Better conversations. Better care.</b>
-            <small>One connected experience for patients and care teams.</small>
+            <b>{t("auth.asideTag")}</b>
+            <small>{t("auth.asideSmall")}</small>
           </div>
         </div>
       </aside>
-      <main className="auth-main">{children}</main>
+      <main className="auth-main">
+        <LanguageSwitcher onChange={onLanguage} className="auth-lang" />
+        {children}
+      </main>
     </div>
   );
 }
 function PatientDashboard({
   go,
-  language,
-  setLanguage,
+  onLanguage,
   intakes,
   onView,
   notify,
   userName,
   onLogout,
 }) {
+  const { t } = useTranslation();
   const latest = intakes && intakes.length ? intakes[0] : null;
   return (
     <div className="patient-layout">
@@ -1199,17 +1196,13 @@ function PatientDashboard({
         <Brand go={go} />
         <nav>
           <button className="active">
-            <LayoutDashboard /> Dashboard
+            <LayoutDashboard /> {t("dash.nav.dashboard")}
           </button>
-          <button
-            onClick={() =>
-              notify("Profile details are available in this demo account.")
-            }
-          >
-            <User /> My Profile
+          <button onClick={() => notify(t("dash.profileSoon"))}>
+            <User /> {t("dash.nav.profile")}
           </button>
           <button onClick={() => go("chat")}>
-            <MessageCircle /> AI Consultation (Chat)
+            <MessageCircle /> {t("dash.nav.chat")}
           </button>
           <button
             onClick={() =>
@@ -1218,54 +1211,38 @@ function PatientDashboard({
                 ?.scrollIntoView({ behavior: "smooth" })
             }
           >
-            <History /> Past History
+            <History /> {t("dash.nav.history")}
           </button>
           <button onClick={onLogout}>
-            <LogOut /> Log out
+            <LogOut /> {t("common.logout")}
           </button>
         </nav>
-        <label className="language">
-          <Languages />
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          >
-            {Object.keys(LANGUAGE_CODES).map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
-          <ChevronDown />
-        </label>
+        <LanguageSwitcher onChange={onLanguage} className="language" />
       </aside>
       <main className="patient-main">
         <header className="dash-head">
           <div>
-            <span className="eyebrow">PATIENT DASHBOARD</span>
+            <span className="eyebrow">{t("dash.eyebrow")}</span>
             <h2>
-              {userName ? `Welcome, ${userName}` : "Welcome to HealthSpeak AI"}
+              {userName ? t("common.welcomeName", { name: userName }) : t("dash.welcome")}
             </h2>
-            <p>How are you feeling today?</p>
+            <p>{t("dash.feeling")}</p>
           </div>
-          <button className="user-chip" onClick={()=>notify('Patient demo account')}>
-            HS
-            </button>
+          <span className="user-chip">{initials(userName)}</span>
         </header>
         <div className="patient-grid">
           <div>
             <section className="consult">
               <div>
-                <span className="eyebrow">NEED TO CONSULT A DOCTOR?</span>
-                <h3>Start a multilingual AI intake</h3>
-                <p>
-                  Tell us your symptoms via voice or text, and we'll route you
-                  to the right department.
-                </p>
+                <span className="eyebrow">{t("dash.consultEyebrow")}</span>
+                <h3>{t("dash.consultTitle")}</h3>
+                <p>{t("dash.consultText")}</p>
                 <div className="actions">
                   <Btn onClick={() => go("voice")}>
-                    <Mic /> Tap to Speak
+                    <Mic /> {t("dash.tapToSpeak")}
                   </Btn>
                   <Btn kind="outline" onClick={() => go("chat")}>
-                    <MessageCircle /> Start Text Chat
+                    <MessageCircle /> {t("dash.startText")}
                   </Btn>
                 </div>
               </div>
@@ -1275,23 +1252,19 @@ function PatientDashboard({
             <section className="history" id="history">
               <div className="section-title">
                 <div>
-                  <span className="eyebrow">YOUR RECORDS</span>
-                  <h3>Your submitted concerns</h3>
+                  <span className="eyebrow">{t("dash.recordsEyebrow")}</span>
+                  <h3>{t("dash.recordsTitle")}</h3>
                 </div>
               </div>
               <div className="history-table">
                 <div className="history-row head">
-                  <span>Date</span>
-                  <span>What you shared</span>
-                  <span>Status</span>
-                  <span>Action</span>
+                  <span>{t("common.date")}</span>
+                  <span>{t("dash.whatYouShared")}</span>
+                  <span>{t("common.status")}</span>
+                  <span>{t("common.action")}</span>
                 </div>
-                {intakes === null && <p className="empty">Loading...</p>}
-                {intakes && !intakes.length && (
-                  <p className="empty">
-                    Nothing submitted yet. Start a voice or text intake above.
-                  </p>
-                )}
+                {intakes === null && <p className="empty">{t("common.loading")}</p>}
+                {intakes && !intakes.length && <p className="empty">{t("dash.nothingYet")}</p>}
                 {(intakes || []).map((r) => (
                   <div className="history-row" key={r.id}>
                     <span>{formatDate(r.created_at)}</span>
@@ -1300,9 +1273,9 @@ function PatientDashboard({
                         ? r.original_text.slice(0, 70) + "…"
                         : r.original_text}
                     </span>
-                    <span>{REVIEW_LABELS[r.review_status]}</span>
+                    <span>{t(`review.${r.review_status}`)}</span>
                     <button className="link" onClick={() => onView(r)}>
-                      View <ArrowRight />
+                      {t("common.view")} <ArrowRight />
                     </button>
                   </div>
                 ))}
@@ -1311,7 +1284,7 @@ function PatientDashboard({
           </div>
           <aside className="intake-card">
             <div className="section-title">
-              <h3>Latest intake</h3>
+              <h3>{t("dash.latest")}</h3>
               {latest && (
                 <span
                   className={
@@ -1319,39 +1292,36 @@ function PatientDashboard({
                     (latest.review_status === "confirmed" ? "done" : "blue")
                   }
                 >
-                  {REVIEW_LABELS[latest.review_status]}
+                  {t(`review.${latest.review_status}`)}
                 </span>
               )}
             </div>
             {latest ? (
               <>
-                <small>What you shared</small>
+                <small>{t("dash.whatYouShared")}</small>
                 <b dir="auto">
                   {latest.original_text.length > 120
                     ? latest.original_text.slice(0, 120) + "…"
                     : latest.original_text}
                 </b>
-                <Info label="Submitted" value={formatDate(latest.created_at)} />
+                <Info label={t("common.submitted")} value={formatDate(latest.created_at)} />
                 <Info
-                  label="Department"
-                  value={
-                    latest.confirmed_department_name ||
-                    "Assigned by staff after review"
-                  }
+                  label={t("common.department")}
+                  value={latest.confirmed_department_name || t("common.assignedAfterReview")}
                 />
               </>
             ) : (
-              <small>No intake submitted yet.</small>
+              <small>{t("dash.noIntake")}</small>
             )}
             <div className="assigned">
               <div className="avatar">HS</div>
               <div>
                 <b>HealthSpeak AI</b>
-                <small>Medical staff review every submission</small>
+                <small>{t("common.staffReviewEvery")}</small>
               </div>
             </div>
             <p className="notice">
-              <ShieldCheck /> HealthSpeak AI does not diagnose or prescribe.
+              <ShieldCheck /> {t("common.noDiagnosis")}
             </p>
           </aside>
         </div>
@@ -1369,9 +1339,11 @@ function Staff({
   onReview,
   dash,
   onOpen,
+  onLanguage,
 }) {
+  const { t, i18n: i18 } = useTranslation();
   const q = dash ? dash.queue : null;
-  const today = new Date().toLocaleDateString(undefined, {
+  const today = new Date().toLocaleDateString(i18.language, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -1381,25 +1353,26 @@ function Staff({
     <div className="staff-layout">
       <aside className="staff-sidebar">
         <Brand go={go} />
+        <LanguageSwitcher onChange={onLanguage} className="language" />
         <nav>
           <button className="active">
-            <LayoutDashboard /> Overview
+            <LayoutDashboard /> {t("staff.overview")}
           </button>
           <button
             onClick={() =>
               document.getElementById("live-queue")?.scrollIntoView({ behavior: "smooth" })
             }
           >
-            <Users /> Patient queue
+            <Users /> {t("staff.queueNav")}
           </button>
         </nav>
         <div className="staff-user">
           <div className="avatar">{initials(userName)}</div>
           <div>
             <b>{userName}</b>
-            <small>Staff workspace</small>
+            <small>{t("staff.workspace")}</small>
           </div>
-          <button onClick={onLogout} title="Log out" aria-label="Log out">
+          <button onClick={onLogout} title={t("common.logout")} aria-label={t("common.logout")}>
             <LogOut />
           </button>
         </div>
@@ -1408,66 +1381,64 @@ function Staff({
         <header className="dash-head">
           <div>
             <span className="eyebrow">{today.toUpperCase()}</span>
-            <h2>Hello, {userName}</h2>
-            <p>Here’s your daily overview. Let's make care connected.</p>
+            <h2>{t("staff.hello", { name: userName })}</h2>
+            <p>{t("staff.daily")}</p>
           </div>
           <span className="user-chip">{initials(userName)}</span>
         </header>
         <div className="stats">
           <Stat
             icon={<Users />}
-            label="Patients in queue today"
+            label={t("staff.inQueue")}
             value={q ? pad2(Object.values(q).reduce((a, b) => a + b, 0)) : "--"}
           />
           <Stat
             icon={<Clock3 />}
-            label="Intakes awaiting review"
+            label={t("staff.awaiting")}
             value={intakes ? String(intakes.total).padStart(2, "0") : "--"}
           />
-          <Stat icon={<CheckCircle2 />} label="Completed visits" value={q ? pad2(q.completed) : "--"} />
+          <Stat icon={<CheckCircle2 />} label={t("staff.completedVisits")} value={q ? pad2(q.completed) : "--"} />
         </div>
         {canReview && (
           <section className="queue">
             <div className="section-title">
               <div>
-                <span className="eyebrow">AI INTAKE · NEEDS STAFF REVIEW</span>
-                <h3>Intakes awaiting review</h3>
+                <span className="eyebrow">{t("staff.aiEyebrow")}</span>
+                <h3>{t("staff.awaiting")}</h3>
               </div>
             </div>
             <div className="queue-table">
               <div className="queue-row queue-head">
-                <span>Submitted</span>
-                <span>Patient</span>
-                <span>Language</span>
-                <span>What the patient shared</span>
-                <span>Status</span>
-                <span>Action</span>
+                <span>{t("staff.submitted")}</span>
+                <span>{t("staff.patient")}</span>
+                <span>{t("staff.language")}</span>
+                <span>{t("staff.shared")}</span>
+                <span>{t("common.status")}</span>
+                <span>{t("common.action")}</span>
               </div>
-              {intakes === null && <p className="empty">Loading...</p>}
-              {intakes && !intakes.items.length && (
-                <p className="empty">No intakes are waiting for review.</p>
-              )}
+              {intakes === null && <p className="empty">{t("common.loading")}</p>}
+              {intakes && !intakes.items.length && <p className="empty">{t("staff.noneWaiting")}</p>}
               {(intakes ? intakes.items : []).map((i) => (
                 <div className="queue-row" key={i.id}>
                   <small>{formatDate(i.created_at)}</small>
                   <b>{i.patient_name}</b>
-                  <span>{LANGUAGE_NAMES[i.original_language]}</span>
+                  <span>{t(`lang.${i.original_language}`)}</span>
                   <span dir="auto">{i.snippet}</span>
                   <span>
-                    <span className="status wait">Unreviewed</span>
+                    <span className="status wait">{t("staff.unreviewed")}</span>
                     {i.needs_attention && (
                       <span className="status attention" title="Mentions words marked for prompt staff attention">
-                        Attention
+                        {t("staff.attention")}
                       </span>
                     )}
                     {i.suggested_department && (
                       <small className="suggestion">
-                        AI suggests: {i.suggested_department}
+                        {t("staff.suggests", { d: i.suggested_department })}
                       </small>
                     )}
                   </span>
                   <button className="link" onClick={() => onReview(i.id)}>
-                    Review <ArrowRight />
+                    {t("common.review")} <ArrowRight />
                   </button>
                 </div>
               ))}
@@ -1476,9 +1447,9 @@ function Staff({
         )}
         <div id="live-queue">
           <QueuePanel
-            eyebrow="LIVE QUEUE · TODAY"
-            title="Patient queue"
-            emptyText="Nobody is in the queue yet. Confirmed intakes appear here automatically."
+            eyebrow={t("staff.liveEyebrow")}
+            title={t("staff.liveTitle")}
+            emptyText={t("staff.liveEmpty")}
             onOpen={onOpen}
             notify={notify}
           />

@@ -11,6 +11,7 @@ from app.database.models.intake import (
     IntakeRevision,
     Message,
 )
+from app.database.models.kiosk import Kiosk
 from app.database.models.patient import ConsentRecord, Patient
 from app.database.models.user import User
 from app.database.models.visit import (
@@ -27,4 +28,5 @@ __all__ = [
     "IntakeAnalysis", "IntakeRecord", "RoutingRule",
     "IntakeRevision", "Message", "Patient", "User",
     "Appointment", "DoctorSchedule", "Notification", "QueueCounter", "QueueEntry", "QueueNote",
+    "Kiosk",
 ]

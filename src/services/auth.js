@@ -32,6 +32,11 @@ export function getMe() {
   return api("/users/me");
 }
 
+// Save THIS user's display language on the server (independent per user).
+export function updateMyLanguage(uiLanguage) {
+  return api("/users/me/preferences", { method: "PATCH", body: { ui_language: uiLanguage } });
+}
+
 export function hasStoredLogin() {
   return Boolean(tokenStore.get());
 }

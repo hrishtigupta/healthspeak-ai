@@ -11,6 +11,7 @@ FastAPI + PostgreSQL backend for HealthSpeak AI.
 | 5 — Local speech recognition (working) and translation (code ready, model needs your HF login) | partly |
 | 6 — Structured intake, traceable summary, configurable department suggestion | done |
 | 7 — Queue tokens, doctor schedules, appointments, notifications, dashboards | done |
+| 8 — English/Hindi/Urdu UI, Urdu RTL, kiosks + system health, accessibility | done (translations need native review) |
 
 ## What runs where
 
@@ -326,6 +327,53 @@ Default departments/rules (`app/core/default_routing.py`, DRAFT) are created by
 | `GET /api/patients/me/appointments` | patient | Own appointments |
 | `GET /api/notifications`, `POST .../{id}/read`, `POST .../read-all` | any logged-in user | Own messages |
 | `GET /api/dashboard/staff` / `doctor` / `admin` | that role | Aggregated counts |
+
+## Languages, Urdu RTL, kiosks, system health (Phase 8)
+
+**Display languages (frontend, `src/i18n/`):** English, Hindi and Urdu with
+react-i18next (`en.json`, `hi.json`, `ur.json` — same keys). Urdu switches the
+whole page to right-to-left (`<html dir="rtl">`), mirrors arrows and
+direction-dependent spacing, and uses Noto Naskh Arabic; Hindi uses Noto Sans
+Devanagari. **The Hindi and Urdu texts have not been reviewed by a native
+speaker or clinician yet — please arrange that before real use.**
+
+- Before login the device's language is used (remembered in this browser).
+- After login each user's **own** `ui_language` is applied and changes are saved
+  to *their* account only (`PATCH /api/users/me/preferences`). A patient picking
+  Urdu never changes a doctor's or staff member's screen. Logging out returns to
+  the device language.
+- The display language is separate from the language a patient **speaks** in
+  (chosen on the voice/chat screens).
+- Patient-facing pages are fully translated; staff, doctor and admin screens have
+  translated navigation, headings and lists, while detailed review panels and
+  machine-generated summaries remain in English.
+- Known server messages (wrong password, duplicate account, voice errors...)
+  are shown translated; other server errors appear in English.
+
+**Kiosks (D8):** an administrator registers a kiosk on the admin dashboard (or
+`POST /api/admin/kiosks`) and receives a secret key **once**. Open
+`http://<frontend>/?kiosk=<key>` once on the kiosk device: the key is stored on
+that device, removed from the address bar, and the kiosk sends a heartbeat every
+minute (`POST /api/kiosks/heartbeat`, header `X-Kiosk-Key`) with its microphone
+permission state. On a kiosk, a logged-in person is **logged out automatically
+after 2 minutes without activity** so the next person never sees their data.
+Only the key's SHA-256 hash is stored; keys can be rotated and kiosks
+deactivated.
+
+**System health:** `GET /api/admin/system-health` (shown on the admin
+dashboard): database, ffmpeg, audio storage (writable / free space), each AI
+model's state and reason, failed transcriptions (24 h), pending/failed
+translations, and kiosks online.
+
+| Method & path | Who | Purpose |
+|---|---|---|
+| `POST /api/kiosks/heartbeat` | kiosk device (key) | Heartbeat |
+| `GET/POST /api/admin/kiosks`, `PATCH .../{id}`, `POST .../{id}/rotate-key` | admin | Manage kiosks |
+| `GET /api/admin/system-health` | admin | Service status |
+
+**Accessibility:** visible keyboard focus, labelled icon-only buttons and form
+fields, `aria-live` notifications, reduced-motion support, `lang`/`dir` set on
+the page.
 
 ## Tests
 

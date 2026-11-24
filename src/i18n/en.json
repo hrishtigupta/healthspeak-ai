@@ -1,0 +1,152 @@
+{
+  "lang": { "en": "English", "hi": "Hindi", "ur": "Urdu", "display": "Display language", "speaking": "I will speak in" },
+  "common": {
+    "login": "Log in", "logout": "Log out", "signup": "Sign up", "back": "Back", "backHome": "Back to home",
+    "loading": "Loading...", "close": "Close", "open": "Open", "view": "View", "review": "Review",
+    "you": "You", "submitted": "Submitted", "department": "Department", "status": "Status", "date": "Date",
+    "action": "Action", "notYet": "Not yet", "assignedAfterReview": "Assigned by staff after review",
+    "noDiagnosis": "HealthSpeak AI does not diagnose or prescribe.",
+    "staffReviewEvery": "Medical staff review every submission",
+    "loggedOut": "You have been logged out.", "welcomeName": "Welcome, {{name}}",
+    "loggedInAs": "Logged in as {{role}}: {{name}}.", "backToOverview": "Back to overview"
+  },
+  "roles": { "patient": "Patient", "doctor": "Doctor", "staff": "Staff", "admin": "Administrator" },
+  "home": {
+    "nav": { "home": "Home", "features": "Features", "languages": "Languages", "faqs": "FAQs", "contact": "Contact us" },
+    "eyebrow": "Welcome to AI Health Assistant", "titleA": "Your Health,", "titleB": "Your Language.",
+    "intro": "Share your health concerns with HealthSpeak AI in the language you are comfortable with. Your information will be organised for medical staff review.",
+    "startChat": "Start Chatting Now", "voiceInput": "Voice Input", "howHelp": "How can we help you today?",
+    "careInLanguage": "Care in your language", "voiceText": "Voice + Text", "multiLang": "Multiple languages",
+    "f1t": "Voice & Text", "f1d": "Speak or type your concern in the way that feels natural.",
+    "f2t": "Multiple Languages", "f2d": "Communicate comfortably in your preferred language.",
+    "f3t": "24/7 Availability", "f3d": "Start your intake whenever you need assistance.",
+    "howEyebrow": "A simpler first step", "howA": "Better conversations.", "howB": "Better care.",
+    "howIntro": "Share what you are experiencing. HealthSpeak AI helps structure your information so the medical team can review it.",
+    "s1t": "Choose your language", "s1d": "Start with voice or text in a language you are comfortable with.",
+    "s2t": "Share your concern", "s2d": "Describe your symptoms and answer a few simple questions.",
+    "s3t": "Staff review", "s3d": "Your structured intake is routed to the appropriate medical team.",
+    "ctaTitle": "Care begins with being understood.", "ctaText": "Choose your language and start a conversation.",
+    "getStarted": "Get started", "faqEyebrow": "FREQUENTLY ASKED QUESTIONS", "faqTitle": "Good to know",
+    "q1": "Can I use my preferred language?",
+    "a1": "Yes. HealthSpeak AI works in English, Hindi and Urdu. Choose your display language at the top of the page and the language you will speak in on the voice or chat screen.",
+    "q2": "Does the AI provide a medical diagnosis?",
+    "a2": "No. HealthSpeak AI writes down and organises what you share so that medical staff can review it. It does not diagnose or prescribe; clinical decisions are made by the care team.",
+    "q3": "Is my information stored?",
+    "a3": "Yes, on the hospital's own system, and only after you give consent. Voice recordings are turned into text on the hospital's own server and the audio is then deleted. Only authorised staff can see your information.",
+    "footer": "© 2026 HealthSpeak AI · Development version, not yet approved for real patients"
+  },
+  "auth": {
+    "asideA": "Your Health,", "asideB": "Your Language.", "asideText1": "Bringing people and care closer.",
+    "asideText2": "Powered by AI. Connected through language.", "asideTag": "Better conversations. Better care.",
+    "asideSmall": "One connected experience for patients and care teams.",
+    "eyebrow": "YOUR HEALTH, YOUR LANGUAGE", "welcomeBack": "Welcome Back 👋",
+    "selectRole": "Please select your role and enter your details to log in.", "loggingInAs": "I am logging in as",
+    "idLabel": "Email or Phone Number", "idPlaceholder": "Enter your email or mobile number",
+    "password": "Password", "passwordPlaceholder": "Enter your password", "showPassword": "Show or hide password",
+    "forgot": "Forgot Password?", "loggingIn": "Logging in...", "noAccount": "Don't have an account?",
+    "demoNote": "Log in with your HealthSpeak account. Synthetic demo accounts for local testing are listed in backend/README.md.",
+    "needIdPassword": "Enter your email/mobile number and password.",
+    "forgotTitle": "Reset your password",
+    "forgotText": "Online password reset is not available yet. Please ask the hospital front desk to reset your password.",
+    "joinEyebrow": "JOIN HEALTHSPEAK AI", "createTitle": "Create your account", "createText": "Join as a patient. Make care more connected.",
+    "speakingLanguage": "Language you will speak in (voice and chat)", "fullName": "Full Name", "fullNamePh": "e.g. Ankit Kumar",
+    "mobile": "Mobile Number", "mobilePh": "+91 Enter your mobile number", "dob": "Date of Birth", "gender": "Gender",
+    "select": "Select", "createPassword": "Create Password", "passwordMin": "At least 8 characters",
+    "agreeA": "I have read and agree to the", "consentLink": "consent statement",
+    "creating": "Creating account...", "createAccount": "Create Account", "haveAccount": "Already have an account?",
+    "completeAll": "Complete all fields. Password needs at least 8 characters.",
+    "acceptConsent": "Please read and accept the consent statement.", "created": "Account created successfully.",
+    "consentTitle": "Consent statement", "version": "Version {{v}}", "draft": "Draft wording pending hospital review",
+    "iAgree": "I agree"
+  },
+  "gender": { "Female": "Female", "Male": "Male", "Other": "Other", "Prefer not to say": "Prefer not to say" },
+  "voice": {
+    "skip": "Skip to text chat", "eyebrow": "VOICE INTAKE", "listening": "Listening...", "writing": "Writing down your words...",
+    "speak": "Speak in your language", "listeningText": "Listening for your concern. Tap the microphone when finished.",
+    "writingText": "This can take a few seconds.", "pressMic": "Press the microphone and tell us what you are experiencing.",
+    "placeholder": "Your words will appear here. You can also type.", "help": "Help", "mic": "Microphone", "clear": "Clear",
+    "continue": "Continue to chat",
+    "privacy": "Your recording is turned into text on the hospital's own HealthSpeak server, not by an outside service, and the audio is deleted afterwards. Please check the text before continuing.",
+    "helpTitle": "Using voice input", "help1": "1. Choose the language you will speak in.",
+    "help2": "2. Tap the microphone and speak clearly about your concern. Tap it again when you finish.",
+    "help3": "3. Check the text, correct it if needed, then continue to chat.",
+    "helpNote": "Allow microphone access when your browser asks. Your recording is processed on the hospital's own server.",
+    "notSupported": "Recording is not supported in this browser. Please type your concern.",
+    "blocked": "Microphone access was blocked. Allow the microphone, or type your concern instead.",
+    "speakFirst": "Please speak or enter your health concern first.",
+    "waitTranscribe": "Please wait until the recording has been transcribed."
+  },
+  "chat": {
+    "assistant": "HealthSpeak AI Intake Assistant", "assistantShort": "AI Intake Assistant", "endChat": "End Chat",
+    "greeting": "Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?",
+    "placeholder": "Type your message here...", "send": "Send", "voice": "Use voice",
+    "footer": "Medical staff review information before care decisions.",
+    "endTitle": "End this conversation?",
+    "endText": "Your concern will be sent to the medical staff for review. You can see its status on your dashboard.",
+    "continueChat": "Continue chat", "endAndSend": "End chat",
+    "sent": "Your concern has been sent for staff review.", "closed": "Chat closed.",
+    "onlyPatients": "Only patient accounts can submit a health concern.",
+    "loginFirst": "Please log in or create an account so your concern can be saved for staff review."
+  },
+  "dash": {
+    "nav": { "dashboard": "Dashboard", "profile": "My Profile", "chat": "AI Consultation (Chat)", "history": "Past History" },
+    "profileSoon": "Profile changes can be made at the hospital front desk.",
+    "eyebrow": "PATIENT DASHBOARD", "welcome": "Welcome to HealthSpeak AI", "feeling": "How are you feeling today?",
+    "consultEyebrow": "NEED TO CONSULT A DOCTOR?", "consultTitle": "Start a multilingual AI intake",
+    "consultText": "Tell us your symptoms by voice or text. Medical staff will review them and guide you to the right department.",
+    "tapToSpeak": "Tap to Speak", "startText": "Start Text Chat", "recordsEyebrow": "YOUR RECORDS",
+    "recordsTitle": "Your submitted concerns", "whatYouShared": "What you shared",
+    "nothingYet": "Nothing submitted yet. Start a voice or text intake above.", "latest": "Latest intake",
+    "noIntake": "No intake submitted yet."
+  },
+  "review": { "pending_review": "Awaiting staff review", "confirmed": "Confirmed by staff" },
+  "summary": {
+    "title": "Your submitted concern", "status": "Intake status", "languageUsed": "Language you used",
+    "reviewedBy": "Reviewed by staff", "disclaimer": "HealthSpeak AI does not diagnose or prescribe. Medical staff review the information you share."
+  },
+  "visit": {
+    "today": "TODAY", "title": "Your visit", "markRead": "{{n}} new · mark as read", "token": "Your token",
+    "next": "You are next", "ahead": "{{n}} ahead of you", "none": "You have no active visit today.",
+    "upcoming": "UPCOMING APPOINTMENTS", "with": "{{department}} with {{doctor}}", "messages": "MESSAGES"
+  },
+  "queue": {
+    "waiting": "Waiting", "checked_in": "Checked-in", "in_consultation": "With doctor", "completed": "Completed",
+    "cancelled": "Cancelled", "no_show": "Did not attend", "allStatuses": "All statuses", "clear": "Clear filters",
+    "search": "Search patient name or token number", "token": "Token", "patientName": "Patient name",
+    "doctor": "Doctor", "notAssigned": "Not assigned", "ahead": "{{n}} ahead", "years": "yrs"
+  },
+  "staff": {
+    "overview": "Overview", "queueNav": "Patient queue", "workspace": "Staff workspace", "hello": "Hello, {{name}}",
+    "daily": "Here’s your daily overview. Let's make care connected.", "inQueue": "Patients in queue today",
+    "awaiting": "Intakes awaiting review", "completedVisits": "Completed visits", "aiEyebrow": "AI INTAKE · NEEDS STAFF REVIEW",
+    "noneWaiting": "No intakes are waiting for review.", "submitted": "Submitted", "patient": "Patient", "language": "Language",
+    "shared": "What the patient shared", "unreviewed": "Unreviewed", "attention": "Attention", "suggests": "AI suggests: {{d}}",
+    "liveEyebrow": "LIVE QUEUE · TODAY", "liveTitle": "Patient queue",
+    "liveEmpty": "Nobody is in the queue yet. Confirmed intakes appear here automatically."
+  },
+  "doctor": {
+    "myDay": "My day", "role": "Doctor", "eyebrow": "DOCTOR DASHBOARD", "hello": "Hello, {{name}}",
+    "assignedToday": "Patients assigned to you today.", "waiting": "Waiting / checked-in", "withYou": "With you now",
+    "completed": "Completed today", "appointments": "Appointments today", "myPatients": "MY PATIENTS",
+    "assignedTitle": "Patients assigned to me", "noneAssigned": "No patients are assigned to you right now.",
+    "apptEyebrow": "APPOINTMENTS", "apptTitle": "Today's appointments", "noAppts": "No appointments today."
+  },
+  "admin": {
+    "role": "Administrator", "eyebrow": "ADMINISTRATOR DASHBOARD", "title": "Hospital overview",
+    "totalsOnly": "Totals only. No patient details are shown here.", "visitsToday": "Visits today",
+    "avgWait": "Average wait (min)", "awaiting": "Intakes awaiting review", "systemHealth": "SYSTEM HEALTH",
+    "kiosks": "KIOSKS", "online": "online", "offline": "offline", "never": "never seen", "lastSeen": "last seen {{t}}"
+  },
+  "kiosk": { "idleLogout": "You were logged out because the kiosk was not used for a while." },
+  "errors": {
+    "network": "Cannot reach the HealthSpeak server. Please check that the backend is running.",
+    "invalidCredentials": "The email/mobile number or password is not correct.",
+    "duplicateAccount": "An account with this mobile number or email already exists. Please log in.",
+    "consentNeeded": "Please give consent before sharing your health concerns.",
+    "asrUnavailable": "Voice transcription is not available right now. Please type your concern instead.",
+    "silent": "We could not hear any speech. Please try again closer to the microphone.",
+    "tooShort": "The recording is too short.", "tooLong": "The recording is too long. Please keep it under 2 minutes.",
+    "noSpeech": "No words were recognised. Please try again.", "sessionExpired": "Please log in again.",
+    "notAllowed": "You do not have permission to do that.", "generic": "Something went wrong. Please try again."
+  }
+}

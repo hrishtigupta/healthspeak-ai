@@ -1,10 +1,12 @@
 // Live visit queue for today (staff: everyone; doctors: only patients assigned to them).
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowRight, Search } from "lucide-react";
 import { Btn, QUEUE_STATUS, Status } from "../../components/ui.jsx";
 import { listQueue } from "../../services/visits.js";
 
 export default function QueuePanel({ title, eyebrow, onOpen, notify, refreshKey, emptyText }) {
+  const { t } = useTranslation();
   const [items, SetItems] = useState(null);
   const [q, SetQ] = useState("");
   const [status, SetStatus] = useState("");
@@ -12,7 +14,7 @@ export default function QueuePanel({ title, eyebrow, onOpen, notify, refreshKey,
   useEffect(() => {
     let alive = true;
     SetItems(null);
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       listQueue({ q: q.trim(), status })
         .then((r) => alive && SetItems(r))
         .catch((err) => {
@@ -24,7 +26,7 @@ export default function QueuePanel({ title, eyebrow, onOpen, notify, refreshKey,
     }, 250); // small delay so typing does not send a request per key
     return () => {
       alive = false;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [q, status, refreshKey]);
 
@@ -42,37 +44,38 @@ export default function QueuePanel({ title, eyebrow, onOpen, notify, refreshKey,
             SetStatus("");
           }}
         >
-          Clear filters
+          {t("queue.clear")}
         </Btn>
       </div>
       <div className="queue-tools">
         <div className="search">
           <Search />
           <input
-            placeholder="Search patient name or token number"
+            placeholder={t("queue.search")}
+            aria-label={t("queue.search")}
             value={q}
             onChange={(e) => SetQ(e.target.value)}
           />
         </div>
-        <select value={status} onChange={(e) => SetStatus(e.target.value)} aria-label="Filter by status">
-          <option value="">All statuses</option>
-          {Object.entries(QUEUE_STATUS).map(([k, v]) => (
+        <select value={status} onChange={(e) => SetStatus(e.target.value)} aria-label={t("common.status")}>
+          <option value="">{t("queue.allStatuses")}</option>
+          {Object.keys(QUEUE_STATUS).map((k) => (
             <option key={k} value={k}>
-              {v.label}
+              {t(`queue.${k}`)}
             </option>
           ))}
         </select>
       </div>
       <div className="queue-table">
         <div className="queue-row queue-head">
-          <span>Token</span>
-          <span>Patient name</span>
-          <span>Department</span>
-          <span>Doctor</span>
-          <span>Status</span>
-          <span>Action</span>
+          <span>{t("queue.token")}</span>
+          <span>{t("queue.patientName")}</span>
+          <span>{t("common.department")}</span>
+          <span>{t("queue.doctor")}</span>
+          <span>{t("common.status")}</span>
+          <span>{t("common.action")}</span>
         </div>
-        {items === null && <p className="empty">Loading...</p>}
+        {items === null && <p className="empty">{t("common.loading")}</p>}
         {items && !items.length && <p className="empty">{emptyText || "No visits match."}</p>}
         {(items || []).map((e) => (
           <div className="queue-row" key={e.id}>
@@ -80,19 +83,19 @@ export default function QueuePanel({ title, eyebrow, onOpen, notify, refreshKey,
             <span>
               <b>{e.patient.full_name}</b>
               <small>
-                {e.patient.age} yrs · {e.patient.gender.replace(/_/g, " ")}
+                {e.patient.age} {t("queue.years")} · {e.patient.gender.replace(/_/g, " ")}
               </small>
             </span>
             <span>{e.department.name}</span>
-            <span>{e.doctor ? e.doctor.name : "Not assigned"}</span>
+            <span>{e.doctor ? e.doctor.name : t("queue.notAssigned")}</span>
             <span>
               <Status value={e.status} />
               {e.position !== null && e.position !== undefined && (
-                <small className="suggestion">{e.position} ahead</small>
+                <small className="suggestion">{t("queue.ahead", { n: e.position })}</small>
               )}
             </span>
             <button className="link" onClick={() => onOpen(e.id)}>
-              Open <ArrowRight />
+              {t("common.open")} <ArrowRight />
             </button>
           </div>
         ))}
