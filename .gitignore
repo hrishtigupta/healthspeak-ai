@@ -14,3 +14,10 @@ __pycache__/
 # Local AI model weights and uploaded audio/files (never commit)
 ai_models/
 storage/
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Generated Graphify output and cache
+graphify-out/
+
+.claude/settings.json
