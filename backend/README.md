@@ -7,6 +7,7 @@ FastAPI + PostgreSQL backend for HealthSpeak AI.
 | 1 — Skeleton, database, health checks | done |
 | 2 — Users, login/logout, roles, UI-language preference | done |
 | 3 — Patient profiles, consent history; React login + sign-up connected | done |
+| 4 — Conversations, intake submission, staff review/correction/confirmation | done |
 
 ## What runs where
 
@@ -137,6 +138,24 @@ With the API running, open in a browser:
 | `GET /api/patients?q=` | staff | Search by name or phone |
 | `GET/PATCH /api/patients/{id}` | staff | View (audited) / correct a patient |
 | `GET/POST /api/patients/{id}/consents` | staff | Consent history / record consent on the patient's behalf |
+
+| `POST /api/conversations` | patient | Resume the open conversation or start one (needs valid consent) |
+| `GET /api/conversations/{id}` | owner patient | Conversation with messages |
+| `POST /api/conversations/{id}/messages` | owner patient | `{content, language, input_mode}` → stored message + fixed acknowledgement |
+| `POST /api/conversations/{id}/submit` | owner patient | Creates the intake (awaiting staff review) |
+| `GET /api/patients/me/intakes` | patient | Own submissions and their review status |
+| `GET /api/intakes?review_status=pending_review` | staff | Review list, oldest first |
+| `GET /api/intakes/{id}` | staff | Full intake incl. messages and change history (audited) |
+| `PATCH /api/intakes/{id}` | staff | `{final_text, reason}` — staff-reviewed English text |
+| `POST /api/intakes/{id}/confirm` | staff | Confirm (optionally with a last edit) |
+
+**Intake text rules:** `original_text` is exactly what the patient typed or
+approved and is never changed. `english_text` is a copy when the patient used
+English; for Hindi/Urdu it stays empty with `translation_status = pending` until
+the local translation phase. `final_text` is the staff-reviewed version — every
+change keeps the old and new value in `intake_revisions`. An intake cannot be
+confirmed without English text. The chat assistant only sends a fixed
+acknowledgement; it never interprets, diagnoses or advises.
 
 **Consent:** the wording lives in `app/core/consent.py` and is a **draft that
 must be reviewed by the hospital's legal, privacy and clinical teams**. Each

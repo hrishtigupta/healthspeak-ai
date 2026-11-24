@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -44,6 +44,29 @@ import {
   LANGUAGE_CODES,
   GENDER_CODES,
 } from "./services/auth.js";
+import {
+  openConversation,
+  sendMessage,
+  submitConversation,
+  myIntakes,
+  listIntakes,
+  getIntake,
+  correctIntake,
+  confirmIntake,
+  LANGUAGE_NAMES,
+  REVIEW_LABELS,
+  TRANSLATION_LABELS,
+  formatDate,
+} from "./services/intake.js";
+const GREETING = {
+  by: "doctor",
+  text: "Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?",
+};
+// Server messages -> the chat bubble format the UI already uses.
+const toChat = (m) => ({
+  by: m.sender === "patient" ? "patient" : "doctor",
+  text: m.content,
+});
 const ROLE_LABELS = {
   patient: "Patient",
   doctor: "Doctor",
@@ -161,41 +184,6 @@ const patients0 = [
     symptoms,
   }),
 );
-const records = [
-  {
-    date: "Oct 15, 2026",
-    symptoms: "Stomach pain, Nausea",
-    dept: "Gastroenterology",
-    doctor: "Dr. Priya Sharma",
-    quote:
-      "Doctor, I have been having severe stomach pain since yesterday morning, and I feel very nauseous, especially after eating anything.",
-    confidence: "98%",
-    location: "HealthSpeak Main City Hospital (Room 203)",
-    meds: "Pantoprazole 40mg (1-0-0) · Ondansetron 4mg (SOS)",
-  },
-  {
-    date: "Sep 28, 2026",
-    symptoms: "Persistent cough, Mild fever",
-    dept: "Pulmonology",
-    doctor: "Dr. Rajesh Verma",
-    quote:
-      "I have a persistent dry cough that isn’t going away, and a mild fever that comes and goes for the last 5 days.",
-    confidence: "97%",
-    location: "HealthSpeak North Wing Clinic (Cabin 4)",
-    meds: "Ascoril LS Syrup (10ml) · Paracetamol 500mg (1-1-1)",
-  },
-  {
-    date: "Jun 10, 2026",
-    symptoms: "Routine Health Checkup (None)",
-    dept: "General Medicine",
-    doctor: "Dr. Sanjeev Kumar",
-    quote:
-      "I just want to get my annual routine health checkup done. I have no specific symptoms, just need my blood work and general vitals checked.",
-    confidence: "99%",
-    location: "HealthSpeak Main City Hospital (Room 304)",
-    meds: "Comprehensive Blood Panel (CBC) · Supradyn Multivitamins",
-  },
-];
 const Btn = ({ children, kind = "", ...p }) => (
   <button className={"btn " + kind} {...p}>
     {children}
@@ -246,16 +234,11 @@ export default function App() {
     [language, L] = useState("English"),
     [toast, T] = useState(""),
     [modal, Modal] = useState(""),
-    [messages, Msgs] = useState([
-      {
-        by: 'doctor',
-        text: 'Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?'
-    },
-    ]),
+    [messages, Msgs] = useState([GREETING]),
     [message, Msg] = useState(""),
     [voice, V] = useState(""),
     [listening, Listen] = useState(false),
-    [recordsIndex, RI] = useState(0),
+    [summaryIntake, SummaryIntake] = useState(null), // intake shown on the summary page
     [patients, Patients] = useState(patients0),
     [selected, Selected] = useState(patients0[0]),
     [query, Q] = useState(""),
@@ -267,7 +250,12 @@ export default function App() {
     [user, SetUser] = useState(null), // logged-in user from the backend
     [busy, Busy] = useState(false), // a login/sign-up request is in flight
     [agreed, Agreed] = useState(false), // sign-up consent checkbox
-    [consentDoc, ConsentDoc] = useState(null); // consent text from the backend
+    [consentDoc, ConsentDoc] = useState(null), // consent text from the backend
+    [convId, ConvId] = useState(null), // the patient's open conversation
+    [sending, Sending] = useState(false),
+    [myIntakeList, MyIntakeList] = useState(null), // patient's own submissions
+    [staffIntakes, StaffIntakes] = useState(null), // intakes awaiting review
+    [reviewIntake, ReviewIntake] = useState(null); // intake open in the review screen
   const notify = (x) => {
     T(x);
     setTimeout(() => T(""), 3000);
@@ -392,6 +380,15 @@ export default function App() {
     SetUser(null);
     E("");
     clearPersonalForms();
+    // Drop everything loaded for the previous person.
+    ConvId(null);
+    Msgs([GREETING]);
+    Msg("");
+    V("");
+    MyIntakeList(null);
+    StaffIntakes(null);
+    ReviewIntake(null);
+    SummaryIntake(null);
     go("home");
     notify("You have been logged out.");
   };
@@ -404,51 +401,124 @@ export default function App() {
       ConsentDoc({ error: err.message });
     }
   };
-  const send = () => {
-    if (!message.trim()) return;
-
-    Msgs(m => [
-        ...m,
-        { by: 'patient', text: message },
-        {
-        by: 'doctor',
-        text: 'Thank you for sharing your concern. Your response has been added to your intake summary. You can share any additional symptoms or information. Your information will be reviewed by medical staff.'
-        }
-    ]);
-
-    Msg('');
-  };
-  const voiceContinue = () => {
-
-  // Do not continue if no speech or text was entered
-    if (!voice.trim()) {
-        notify('Please speak or enter your health concern first.');
-        return;
+  // Only a logged-in patient can save a concern (it needs their profile + consent).
+  const requirePatient = () => {
+    if (user && user.role === "patient") return true;
+    if (user) {
+      notify("Only patient accounts can submit a health concern.");
+    } else {
+      notify("Please log in or create an account so your concern can be saved for staff review.");
+      go("login");
     }
-
+    return false;
+  };
+  // Save one message in the patient's conversation (creating/resuming it first).
+  const postToIntake = async (text, inputMode) => {
+    let cid = convId;
+    if (!cid) {
+      const conv = await openConversation();
+      cid = conv.id;
+      ConvId(cid);
+      Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
+    }
+    const ex = await sendMessage(cid, text, LANGUAGE_CODES[language] || "en", inputMode);
+    Msgs((m) => [...m, toChat(ex.patient_message), toChat(ex.assistant_message)]);
+  };
+  const send = async () => {
+    if (!message.trim() || sending) return;
+    if (!requirePatient()) return;
+    Sending(true);
+    try {
+      await postToIntake(message, "text");
+      Msg("");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      Sending(false);
+    }
+  };
+  const voiceContinue = async () => {
+    // Do not continue if no speech or text was entered
+    if (!voice.trim()) {
+      notify("Please speak or enter your health concern first.");
+      return;
+    }
     // Stop microphone if it is still active
     if (recognitionRef.current) {
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
     }
-
     Listen(false);
-
-    // Add the patient's actual words to the chat
-    Msgs(m => [
-        ...m,
-        {
-        by: 'patient',
-        text: voice
-        },
-        {
-        by: 'doctor',
-        text: 'Thank you for sharing your concern with HealthSpeak AI. Your information has been added to the intake summary for medical staff review.'
-        }
-    ]);
-
-    go('chat');
-    };
+    if (!requirePatient() || sending) return;
+    Sending(true);
+    try {
+      // The patient reviewed this browser transcript before continuing.
+      await postToIntake(voice, "voice_browser");
+      V("");
+      go("chat");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      Sending(false);
+    }
+  };
+  const endChat = async () => {
+    const cid = convId;
+    try {
+      if (cid) {
+        await submitConversation(cid);
+        notify("Your concern has been sent for staff review.");
+      } else {
+        notify("Chat closed.");
+      }
+    } catch (err) {
+      // 422 = nothing was written yet; the empty chat simply stays open for later.
+      notify(err.status === 422 ? "Chat closed." : err.message);
+      if (err.status !== 422) return;
+    }
+    ConvId(null);
+    Msgs([GREETING]);
+    go("dashboard");
+  };
+  // Load real data when a page that shows it is opened.
+  useEffect(() => {
+    // Clear first so stale data is never shown while the fresh copy loads.
+    if (page === "dashboard" && user && user.role === "patient") {
+      MyIntakeList(null);
+      myIntakes()
+        .then(MyIntakeList)
+        .catch((err) => notify(err.message));
+    }
+    if (page === "staff" && user && user.role === "staff") {
+      StaffIntakes(null);
+      listIntakes("pending_review")
+        .then((r) => StaffIntakes(r))
+        .catch((err) => notify(err.message));
+    }
+  }, [page, user]);
+  const openReview = async (id) => {
+    try {
+      ReviewIntake(await getIntake(id));
+      go("intake");
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+  const saveReview = async (finalText, reason, andConfirm) => {
+    if (!reviewIntake || busy) return;
+    Busy(true);
+    try {
+      const updated = andConfirm
+        ? await confirmIntake(reviewIntake.id, finalText, reason)
+        : await correctIntake(reviewIntake.id, finalText, reason);
+      ReviewIntake(updated);
+      notify(andConfirm ? "Intake confirmed." : "Correction saved. The previous text is kept in the history.");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      Busy(false);
+    }
+  };
   const update = (patch) => {
     let p = { ...selected, ...patch };
     Selected(p);
@@ -881,8 +951,8 @@ export default function App() {
               <label>
                 <Languages /> Language{" "}
                 <select value={language} onChange={(e) => L(e.target.value)}>
-                  {["English", "Hindi", "Urdu", "Dogri", "Punjabi"].map((x) => (
-                    <option>{x}</option>
+                  {Object.keys(LANGUAGE_CODES).map((x) => (
+                    <option key={x}>{x}</option>
                   ))}
                 </select>
               </label>
@@ -947,8 +1017,8 @@ export default function App() {
                   }
                 />
                 <select value={language} onChange={(e) => L(e.target.value)}>
-                  {["English", "Hindi", "Urdu", "Dogri"].map((x) => (
-                    <option>{x}</option>
+                  {Object.keys(LANGUAGE_CODES).map((x) => (
+                    <option key={x}>{x}</option>
                   ))}
                 </select>
                 <button onClick={() => go("voice")}>
@@ -962,7 +1032,7 @@ export default function App() {
                   onKeyDown={(e) => e.key === "Enter" && send()}
                   placeholder="Type your message here..."
                 />
-                <button onClick={send}>
+                <button onClick={send} disabled={sending} aria-label="Send">
                   <Send />
                 </button>
               </div>
@@ -1016,18 +1086,22 @@ export default function App() {
           go={go}
           language={language}
           setLanguage={L}
-          setIndex={RI}
+          intakes={myIntakeList}
+          onView={(intake) => {
+            SummaryIntake(intake);
+            go("summary");
+          }}
           notify={notify}
           userName={user && user.full_name}
           onLogout={doLogout}
         />
       )}
-      {page === "summary" && (
+      {page === "summary" && summaryIntake && (
         <div className="summary">
           <header>
             <div>
-              <h2>Consultation Summary</h2>
-              <b>{records[recordsIndex].date}</b>
+              <h2>Your submitted concern</h2>
+              <b>{formatDate(summaryIntake.created_at)}</b>
             </div>
             <Btn kind="outline" onClick={() => go("dashboard")}>
               <ArrowLeft /> Back
@@ -1035,45 +1109,48 @@ export default function App() {
           </header>
           <main>
             <div className="quote">
-              <div className="avatar">AK</div>
-              <blockquote>“{records[recordsIndex].quote}”</blockquote>
+              <div className="avatar">You</div>
+              <blockquote dir="auto">“{summaryIntake.original_text}”</blockquote>
             </div>
             <section className="structured">
               <div className="section-title">
                 <h3>
-                  <ClipboardList /> Structured Intake & Resolution
+                  <ClipboardList /> Intake status
                 </h3>
-                <span className="status blue">Sample Extraction Output</span>
+                <span
+                  className={
+                    "status " +
+                    (summaryIntake.review_status === "confirmed" ? "done" : "wait")
+                  }
+                >
+                  {REVIEW_LABELS[summaryIntake.review_status]}
+                </span>
               </div>
               <div className="summary-grid">
                 <Info
-                  label="Reported symptoms"
-                  value={records[recordsIndex].symptoms}
-                />
-                <b className="confidence">
-                Sample: {records[recordsIndex].confidence}
-                </b>
-                <Info
-                  label="Routed department"
-                  value={records[recordsIndex].dept}
-                />
-                <b className="confidence">Sample:95%</b>
-                <Info
-                  label="Consulting Doctor"
-                  value={records[recordsIndex].doctor}
+                  label="Language you used"
+                  value={LANGUAGE_NAMES[summaryIntake.original_language]}
                 />
                 <Info
-                  label="Hospital / Location"
-                  value={records[recordsIndex].location}
+                  label="Submitted"
+                  value={formatDate(summaryIntake.created_at)}
                 />
                 <Info
-                  label="Prescribed Medicine / Action"
-                  value={records[recordsIndex].meds}
+                  label="Reviewed by staff"
+                  value={
+                    summaryIntake.reviewed_at
+                      ? formatDate(summaryIntake.reviewed_at)
+                      : "Not yet"
+                  }
+                />
+                <Info
+                  label="Department"
+                  value="Assigned by staff after review"
                 />
               </div>
               <p className="disclaimer">
-                <ShieldCheck /> Demo data only. Medication and care information
-                must be verified by a qualified healthcare professional.
+                <ShieldCheck /> HealthSpeak AI does not diagnose or prescribe.
+                Medical staff review the information you share.
               </p>
             </section>
           </main>
@@ -1097,6 +1174,18 @@ export default function App() {
           notify={notify}
           userName={user && user.full_name}
           onLogout={doLogout}
+          intakes={staffIntakes}
+          canReview={Boolean(user && user.role === "staff")}
+          onReview={openReview}
+        />
+      )}
+      {page === "intake" && reviewIntake && (
+        <IntakeReview
+          key={reviewIntake.id + reviewIntake.updated_at}
+          intake={reviewIntake}
+          busy={busy}
+          go={go}
+          onSave={saveReview}
         />
       )}
       {page === "workspace" && (
@@ -1181,10 +1270,7 @@ export default function App() {
               Continue chat
             </Btn>
             <Btn
-              onClick={() => {
-                go("dashboard");
-                notify("Chat ended. Intake is available for staff review.");
-              }}
+              onClick={endChat}
             >
               End chat
             </Btn>
@@ -1259,11 +1345,13 @@ function PatientDashboard({
   go,
   language,
   setLanguage,
-  setIndex,
+  intakes,
+  onView,
   notify,
   userName,
   onLogout,
 }) {
+  const latest = intakes && intakes.length ? intakes[0] : null;
   return (
     <div className="patient-layout">
       <aside className="patient-sidebar">
@@ -1301,8 +1389,8 @@ function PatientDashboard({
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
           >
-            {["English", "Hindi", "Urdu", "Dogri", "Punjabi"].map((x) => (
-              <option>{x}</option>
+            {Object.keys(LANGUAGE_CODES).map((x) => (
+              <option key={x}>{x}</option>
             ))}
           </select>
           <ChevronDown />
@@ -1346,37 +1434,33 @@ function PatientDashboard({
               <div className="section-title">
                 <div>
                   <span className="eyebrow">YOUR RECORDS</span>
-                  <h3>Recent Medical History</h3>
+                  <h3>Your submitted concerns</h3>
                 </div>
-                <button
-                  className="link"
-                  onClick={() =>
-                    notify("All available demo records are shown.")
-                  }
-                >
-                  View all <ArrowRight />
-                </button>
               </div>
               <div className="history-table">
                 <div className="history-row head">
                   <span>Date</span>
-                  <span>Extracted Symptoms</span>
-                  <span>Department</span>
+                  <span>What you shared</span>
+                  <span>Status</span>
                   <span>Action</span>
                 </div>
-                {records.map((r, i) => (
-                  <div className="history-row">
-                    <span>{r.date}</span>
-                    <span>{r.symptoms}</span>
-                    <span>{r.dept}</span>
-                    <button
-                      className="link"
-                      onClick={() => {
-                        setIndex(i);
-                        go("summary");
-                      }}
-                    >
-                      View Summary <ArrowRight />
+                {intakes === null && <p className="empty">Loading...</p>}
+                {intakes && !intakes.length && (
+                  <p className="empty">
+                    Nothing submitted yet. Start a voice or text intake above.
+                  </p>
+                )}
+                {(intakes || []).map((r) => (
+                  <div className="history-row" key={r.id}>
+                    <span>{formatDate(r.created_at)}</span>
+                    <span dir="auto">
+                      {r.original_text.length > 70
+                        ? r.original_text.slice(0, 70) + "…"
+                        : r.original_text}
+                    </span>
+                    <span>{REVIEW_LABELS[r.review_status]}</span>
+                    <button className="link" onClick={() => onView(r)}>
+                      View <ArrowRight />
                     </button>
                   </div>
                 ))}
@@ -1385,34 +1469,44 @@ function PatientDashboard({
           </div>
           <aside className="intake-card">
             <div className="section-title">
-              <h3>Sample Intake Status</h3>
-              <span className="status blue">Routed</span>
+              <h3>Latest intake</h3>
+              {latest && (
+                <span
+                  className={
+                    "status " +
+                    (latest.review_status === "confirmed" ? "done" : "blue")
+                  }
+                >
+                  {REVIEW_LABELS[latest.review_status]}
+                </span>
+              )}
             </div>
-            <small>Reported Symptoms</small>
-            <small className="demo-note">
-            Illustrative information for demonstration only.
-            </small>
-            <b>Fever, Headache, Weakness</b>
-            <div className="confidence-row">
-            <span>Illustrative Demo Score</span>
-            <b>94%</b>
-            </div>
-            <div className="progress">
-              <i />
-            </div>
-            <small>Triage Level</small>
-            <span className="status done">Normal</span>
-            <Info label="Routed Department" value="General Medicine" />
+            {latest ? (
+              <>
+                <small>What you shared</small>
+                <b dir="auto">
+                  {latest.original_text.length > 120
+                    ? latest.original_text.slice(0, 120) + "…"
+                    : latest.original_text}
+                </b>
+                <Info label="Submitted" value={formatDate(latest.created_at)} />
+                <Info
+                  label="Department"
+                  value="Assigned by staff after review"
+                />
+              </>
+            ) : (
+              <small>No intake submitted yet.</small>
+            )}
             <div className="assigned">
-            <div className="avatar">HS</div>
-            <div>
+              <div className="avatar">HS</div>
+              <div>
                 <b>HealthSpeak AI</b>
-                <small>Intake information awaiting medical staff review</small>
-            </div>
+                <small>Medical staff review every submission</small>
+              </div>
             </div>
             <p className="notice">
-              <ShieldCheck /> Intake information is a draft for medical staff
-              review.
+              <ShieldCheck /> HealthSpeak AI does not diagnose or prescribe.
             </p>
           </aside>
         </div>
@@ -1432,6 +1526,9 @@ function Staff({
   notify,
   userName,
   onLogout,
+  intakes,
+  canReview,
+  onReview,
 }) {
   return (
     <div className="staff-layout">
@@ -1481,9 +1578,49 @@ function Staff({
             label="Today's patients"
             value={String(all.length).padStart(2, "0")}
           />
-          <Stat icon={<Clock3 />} label="Waiting for review" value="05" />
+          <Stat
+            icon={<Clock3 />}
+            label="Intakes awaiting review"
+            value={intakes ? String(intakes.total).padStart(2, "0") : "--"}
+          />
           <Stat icon={<CheckCircle2 />} label="Completed visits" value="02" />
         </div>
+        {canReview && (
+          <section className="queue">
+            <div className="section-title">
+              <div>
+                <span className="eyebrow">AI INTAKE · NEEDS STAFF REVIEW</span>
+                <h3>Intakes awaiting review</h3>
+              </div>
+            </div>
+            <div className="queue-table">
+              <div className="queue-row queue-head">
+                <span>Submitted</span>
+                <span>Patient</span>
+                <span>Language</span>
+                <span>What the patient shared</span>
+                <span>Status</span>
+                <span>Action</span>
+              </div>
+              {intakes === null && <p className="empty">Loading...</p>}
+              {intakes && !intakes.items.length && (
+                <p className="empty">No intakes are waiting for review.</p>
+              )}
+              {(intakes ? intakes.items : []).map((i) => (
+                <div className="queue-row" key={i.id}>
+                  <small>{formatDate(i.created_at)}</small>
+                  <b>{i.patient_name}</b>
+                  <span>{LANGUAGE_NAMES[i.original_language]}</span>
+                  <span dir="auto">{i.snippet}</span>
+                  <span className="status wait">Unreviewed</span>
+                  <button className="link" onClick={() => onReview(i.id)}>
+                    Review <ArrowRight />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         <section className="queue">
           <div className="section-title">
             <div>
@@ -1732,6 +1869,139 @@ function Workspace({
               <p>
                 AI intake information should be reviewed and confirmed by
                 authorised medical staff before any clinical decision.
+              </p>
+              <p className="notice">
+                <ShieldCheck /> Staff review required
+              </p>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  );
+}
+function IntakeReview({ intake, busy, go, onSave }) {
+  const [text, SetText] = useState(
+    intake.final_text || intake.english_text || "",
+  );
+  const [reason, SetReason] = useState("");
+  const confirmed = intake.review_status === "confirmed";
+  const p = intake.patient;
+  return (
+    <div className="workspace">
+      <aside className="staff-sidebar compact">
+        <Brand go={go} />
+        <nav>
+          <button onClick={() => go("staff")} aria-label="Back to staff overview">
+            <LayoutDashboard />
+          </button>
+        </nav>
+      </aside>
+      <main>
+        <header className="dash-head">
+          <div>
+            <span className="eyebrow">STAFF / INTAKE REVIEW</span>
+            <h2>Review intake</h2>
+            <p>Submitted {formatDate(intake.created_at)}</p>
+          </div>
+          <div className="workspace-links">
+            <button className="link" onClick={() => go("staff")}>
+              <ArrowLeft /> Back to overview
+            </button>
+          </div>
+        </header>
+        <div className="workspace-grid">
+          <section className="workspace-card">
+            <div className="patient-title">
+              <div>
+                <span className="eyebrow">PATIENT</span>
+                <h1>{p.full_name}</h1>
+                <p>
+                  {p.age} yrs · {p.gender.replace(/_/g, " ")} · prefers{" "}
+                  {LANGUAGE_NAMES[p.preferred_language]}
+                </p>
+              </div>
+              <span className={"status " + (confirmed ? "done" : "wait")}>
+                {confirmed ? "Confirmed by staff" : "Unreviewed"}
+              </span>
+            </div>
+            <div className="workspace-section">
+              <span className="eyebrow">
+                PATIENT'S ORIGINAL WORDS · {LANGUAGE_NAMES[intake.original_language].toUpperCase()}
+              </span>
+              <p dir="auto" style={{ whiteSpace: "pre-wrap" }}>
+                {intake.original_text}
+              </p>
+              <small>Stored exactly as submitted. This text is never changed.</small>
+            </div>
+            <div className="workspace-section">
+              <span className="eyebrow">
+                ENGLISH VERSION · {TRANSLATION_LABELS[intake.translation_status].toUpperCase()}
+              </span>
+              {intake.english_text ? (
+                <p style={{ whiteSpace: "pre-wrap" }}>{intake.english_text}</p>
+              ) : (
+                <p>
+                  No English version yet. Write the English version in the box
+                  below before confirming.
+                </p>
+              )}
+            </div>
+            <div className="workspace-section">
+              <span className="eyebrow">STAFF-REVIEWED TEXT (ENGLISH)</span>
+              <textarea
+                value={text}
+                onChange={(e) => SetText(e.target.value)}
+                placeholder="Corrected English version of what the patient reported..."
+              />
+              <input
+                className="reason"
+                value={reason}
+                onChange={(e) => SetReason(e.target.value)}
+                placeholder="Reason for change (optional)"
+                maxLength={500}
+              />
+              <div className="actions">
+                <Btn
+                  kind="outline"
+                  disabled={busy || !text.trim()}
+                  onClick={() => onSave(text, reason, false)}
+                >
+                  Save correction
+                </Btn>
+                {!confirmed && (
+                  <Btn
+                    disabled={busy || !text.trim()}
+                    onClick={() => onSave(text, reason, true)}
+                  >
+                    Confirm intake <Check />
+                  </Btn>
+                )}
+              </div>
+            </div>
+          </section>
+          <aside>
+            <div className="side-card">
+              <span className="eyebrow">CHANGE HISTORY</span>
+              {!intake.revisions.length && <p>No changes yet.</p>}
+              {intake.revisions.map((r, i) => (
+                <p key={i}>
+                  <b>{formatDate(r.created_at)}</b>
+                  <br />
+                  {r.field === "review_status"
+                    ? `Status: ${r.old_value} → ${r.new_value}`
+                    : r.old_value
+                      ? "Reviewed text edited"
+                      : "Reviewed text added"}
+                  {r.reason ? ` (${r.reason})` : ""}
+                </p>
+              ))}
+            </div>
+            <div className="side-card">
+              <span className="eyebrow">REVIEW REMINDER</span>
+              <p>
+                Check the patient's original words. AI and translations can be
+                wrong. HealthSpeak AI does not diagnose or prescribe.
               </p>
               <p className="notice">
                 <ShieldCheck /> Staff review required
