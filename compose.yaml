@@ -1,0 +1,30 @@
+# Local development services for HealthSpeak AI.
+# Only PostgreSQL runs in Docker; FastAPI and Vite run directly on your machine.
+#
+# Start:  docker compose up -d
+# Status: docker compose ps
+# Stop:   docker compose down        (keeps your data)
+# NEVER use "docker compose down -v" routinely: -v deletes the database volume.
+
+services:
+  db:
+    image: postgres:17
+    container_name: healthspeak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Bound to 127.0.0.1 so the database is only reachable from this computer.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - healthspeak_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  healthspeak_pgdata:
