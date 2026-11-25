@@ -1,6 +1,7 @@
 // Phase 5 end-to-end: fake microphone (synthetic TTS wav) -> MediaRecorder -> upload ->
 // local Whisper on the server -> patient reviews text -> submit -> staff review.
 import { launch, sleep } from "./cdp.mjs";
+import { translationState } from "./translation-state.mjs";
 
 const [, , BROWSER, SEED_PW, WAV] = process.argv;
 const APP = "http://127.0.0.1:5173/";
@@ -8,6 +9,9 @@ const API = "http://127.0.0.1:8000/api";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + String(extra).slice(0, 200) : ""}`); };
 
+// Works with translation on (real model) or off: the expectations below follow the live state.
+const MT = await translationState(SEED_PW);
+console.log(`translation model: ${MT.state}`);
 const page = await launch({
   browser: BROWSER,
   args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream",
@@ -87,17 +91,27 @@ try {
   const asr = status.models.find((m) => m.name === "Speech recognition");
   const mt = status.models.find((m) => m.name === "Translation");
   check("AI status: speech model ready", asr.state === "ready", `${asr.state} ${asr.device} load ${asr.load_seconds}s`);
-  check("AI status: translation unavailable with a clear reason", mt.state === "unavailable" && /not on this computer|download/i.test(mt.detail || ""), mt.detail);
+  if (MT.state === "ready") {
+    check("AI status: translation model ready", mt.state === "ready", `${mt.state} ${mt.device}`);
+  } else {
+    check("AI status: translation unavailable with a clear reason", mt.state === "unavailable" && /not on this computer|download/i.test(mt.detail || ""), mt.detail);
+  }
 
   await page.waitFor(`window.__t.has('${MARKH}')`, 10000);
   await page.eval(`[...document.querySelectorAll('.queue-row')].find(r => r.innerText.includes('${MARKH}')).querySelector('button').click()`);
   await page.waitFor("window.__t.has('Review intake')");
-  check("Hindi intake shows translation pending + reason + retry button",
-        (await t("has('TRANSLATION PENDING')")) && (await t("has('Retry machine translation')")) && (await t("has('download_models')")));
-  await clearToast();
-  await t("btn('Retry machine translation')");
-  await page.waitFor("window.__t.toast().length > 0", 15000);
-  check("retry while model missing gives a clear message", /not on this computer|unavailable/i.test(await t("toast()")), await t("toast()"));
+  if (MT.state === "ready") {
+    check("Hindi intake was machine-translated: labelled unreviewed, English shown, no retry needed",
+          (await t("has('MACHINE TRANSLATION (UNREVIEWED)')")) && (await t("has('Machine translation by')"))
+          && /cough/i.test(await page.text()) && !(await t("has('Retry machine translation')")));
+  } else {
+    check("Hindi intake shows translation pending + reason + retry button",
+          (await t("has('TRANSLATION PENDING')")) && (await t("has('Retry machine translation')")) && (await t("has('download_models')")));
+    await clearToast();
+    await t("btn('Retry machine translation')");
+    await page.waitFor("window.__t.toast().length > 0", 15000);
+    check("retry while model missing gives a clear message", /not on this computer|unavailable/i.test(await t("toast()")), await t("toast()"));
+  }
   await t("btn('Back to overview')");
   await page.waitFor(`window.__t.has('${MARK}')`);
 

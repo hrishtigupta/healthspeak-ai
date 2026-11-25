@@ -1,11 +1,15 @@
 // Phase 4 end-to-end: patient chat -> submit intake -> staff review/confirm -> patient sees status.
 import { launch } from "./cdp.mjs";
+import { translationState } from "./translation-state.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
 const APP = "http://127.0.0.1:5173/";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + String(extra).slice(0, 160) : ""}`); };
 
+// Works with translation on (real model) or off: the expectations below follow the live state.
+const MT = await translationState(SEED_PW);
+console.log(`translation model: ${MT.state}`);
 const page = await launch({ browser: BROWSER });
 const t = (js) => page.eval(`window.__t.${js}`);
 const stamp = Date.now().toString().slice(-6);
@@ -83,7 +87,13 @@ try {
   await page.waitFor("window.__t.has('Review intake')");
   check("review screen shows original words and 'never changed' note",
         (await t(`has(${JSON.stringify(HI_MSG)})`)) && (await t("has('never changed')")));
-  check("mixed-language intake shows translation pending", await t("has('TRANSLATION PENDING')"));
+  if (MT.state === "ready") {
+    check("mixed-language intake was machine-translated and is labelled unreviewed",
+          (await t("has('MACHINE TRANSLATION (UNREVIEWED)')")) && (await t("has('Machine translation by')"))
+          && !(await t("has('TRANSLATION PENDING')")) && !(await t("has('Retry machine translation')")));
+  } else {
+    check("mixed-language intake shows translation pending", await t("has('TRANSLATION PENDING')"));
+  }
   const english = `E2E ${stamp}: Knee pain when climbing stairs for two weeks. (Second message: knee pain on stairs.)`;
   await page.eval(`window.__t.set(document.querySelector('.workspace-section textarea'), ${JSON.stringify(english)})`);
   await page.eval("window.__t.set(document.querySelector('input.reason'), 'staff translation of Hindi part')");
