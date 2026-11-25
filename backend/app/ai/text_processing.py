@@ -365,6 +365,8 @@ def _attach_attributes(text: str, mentions: list[SymptomMention]) -> None:
         best = None
         for ev in _simple(text[cl_start:cl_end], SEVERITY_WORDS):
             s, e = cl_start + ev.start, cl_start + ev.end
+            if any(a <= s < b or a < e <= b for a, b in spans):
+                continue  # part of a symptom's own name, e.g. "high" in "high temperature"
             gap = s - m.evidence.end if s >= m.evidence.end else m.evidence.start - e
             if gap > SEVERITY_WINDOW:
                 continue
@@ -424,7 +426,8 @@ def extract(source_text: str) -> Extraction:
     # A term both reported and denied stays "reported" (and visible as both) - staff decide.
 
     result.durations = _regex_evidence(text, _DURATION_PATTERNS)
-    result.severity = _simple(text, SEVERITY_WORDS)
+    result.severity = [ev for ev in _simple(text, SEVERITY_WORDS)
+                       if not any(m.evidence.start <= ev.start < m.evidence.end for m in result.mentions)]
     result.uncertainty = _simple(text, UNCERTAINTY_WORDS)
     result.medication_mentions = list(dict.fromkeys(
         _sentence_around(text, ev.start, ev.end) for ev in _simple(text, MEDICATION_WORDS)))

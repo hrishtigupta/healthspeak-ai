@@ -285,3 +285,18 @@ def test_pluggable_classifier_interface():
         assert suggest("anything", RULES, DEFAULT).classifier == "fixed-test"
     finally:
         dc.register_classifier(original)
+
+
+# ---------- "high" as a severity word ----------
+
+def test_high_fever_records_high_as_severity():
+    ex = extract("I have a high fever for three days.")
+    fever = by_term(ex, "fever")[0]
+    assert fever.attributes["severity"]["text"].lower() == "high"
+    assert [e.text.lower() for e in ex.severity] == ["high"]
+
+
+def test_high_inside_a_symptom_name_is_not_a_severity():
+    ex = extract("I have a high temperature.")
+    assert by_term(ex, "fever") and "severity" not in by_term(ex, "fever")[0].attributes
+    assert ex.severity == []

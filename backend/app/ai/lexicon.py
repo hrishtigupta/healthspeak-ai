@@ -8,7 +8,7 @@ term is only extracted when one of its phrases actually appears in the text.
 Bump LEXICON_VERSION whenever this list changes (it is stored with each analysis).
 """
 
-LEXICON_VERSION = "lex-2026-11-25"
+LEXICON_VERSION = "lex-2026-11-26"
 
 SYMPTOMS: dict[str, list[str]] = {
     "fever": ["fever", "feverish", "high temperature"],
@@ -88,7 +88,7 @@ NEGATION_CUES = [
 ]
 
 SEVERITY_WORDS = ["mild", "slight", "moderate", "severe", "very bad", "bad", "terrible", "unbearable",
-                  "intense", "extreme", "worst", "sharp", "dull"]
+                  "intense", "extreme", "worst", "sharp", "dull", "high"]
 
 UNCERTAINTY_WORDS = ["maybe", "might", "not sure", "i think", "perhaps", "possibly", "sometimes",
                      "on and off", "comes and goes", "i don't know", "not certain"]
