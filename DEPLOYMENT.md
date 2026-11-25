@@ -105,6 +105,109 @@ build is old (re-run step 6), `CORS_ORIGINS` does not exactly match the Netlify 
 
 ---------------------------------------------------------------------------------------------
 
+## Path A (Vercel version) — same demo, website hosted on Vercel instead of Netlify
+
+Use this **instead of** Path A steps 1, 2 and 6. Everything else (the tunnel idea, the demo
+database, the bootstrap command, starting the API, the checks in step 8) is the same. The Netlify
+instructions above are unchanged and still work.
+
+How it works: you build the site **on your PC** and upload only the finished files to Vercel.
+Your source code, the `backend` folder and your `.env` files are **not** uploaded, and nothing is
+pushed to GitHub, so your unpushed branch can stay exactly as it is. The settings Vercel needs are
+in `vercel.json` (build command `npm run build`, output folder `dist`, security headers);
+`netlify.toml` is ignored by Vercel.
+
+### V0. Once: install the tools and log in
+```powershell
+winget install --id Cloudflare.cloudflared
+npm install --global vercel@latest
+```
+Close and reopen PowerShell, then:
+```powershell
+cloudflared --version
+vercel --version
+vercel login
+```
+`vercel login` opens your browser. Never paste a token anywhere.
+
+### V1. Start the tunnel FIRST (window 1 — leave it open and do not restart it)
+```powershell
+cloudflared tunnel --url http://127.0.0.1:8000
+```
+Copy the address it prints, e.g. `https://random-words.trycloudflare.com`. Opening it now shows an
+error because the API is not running yet; that is expected. If you ever restart this window the
+address changes and you must repeat V3.
+
+### V2. Link the Vercel project (window 2)
+```powershell
+cd C:\Users\mukti\OneDrive\Desktop\HealthSpeakAI\healthspeak-ai
+vercel link
+```
+Answer the questions: create a **new project**, name it e.g. `healthspeak-ai`, keep the detected
+settings (Vite, build `npm run build`, output `dist`), and answer **No** if it offers to connect a
+Git repository. This creates a `.vercel` folder that is git-ignored. **Never commit or share
+`.vercel`**: files pulled into it can contain access tokens.
+
+### V3. Give the build the tunnel address, then build and deploy
+```powershell
+vercel env add VITE_API_BASE_URL production
+```
+When it asks for the value, type your tunnel address followed by `/api`, e.g.
+`https://random-words.trycloudflare.com/api`. Then:
+```powershell
+vercel pull --yes --environment=production
+vercel build --prod
+vercel deploy --prebuilt --prod
+```
+(The build stops with a clear message if the address is missing, is not `https://`, or is
+localhost.) The last command prints the website addresses. Use the **stable production address**,
+which looks like `https://healthspeak-ai.vercel.app` (the exact name depends on what Vercel assigned;
+read it from the output or the Vercel dashboard → your project → Domains). Do **not** demo from the
+long per-deployment or preview addresses: the backend only allows the address you list below.
+
+To change the tunnel address later:
+```powershell
+vercel env rm VITE_API_BASE_URL production --yes
+vercel env add VITE_API_BASE_URL production
+vercel pull --yes --environment=production
+vercel build --prod
+vercel deploy --prebuilt --prod
+```
+
+### V4. Make the demo settings file (replaces Path A step 2)
+Replace `https://healthspeak-ai.vercel.app` below with your real stable Vercel address. The
+Netlify address is listed too so either site can be used; remove it if you do not need it.
+```powershell
+cd C:\Users\mukti\OneDrive\Desktop\HealthSpeakAI\healthspeak-ai
+$origins = "https://healthspeak-ai.vercel.app,https://tourmaline-pie-5c1bb1.netlify.app"
+$pw = (Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=(.*)$').Matches[0].Groups[1].Value.Trim()
+$text = "DATABASE_URL=postgresql+psycopg://healthspeak:$pw@127.0.0.1:5432/healthspeak_demo`nAPP_ENV=production`nCORS_ORIGINS=$origins`n"
+[System.IO.File]::WriteAllText("$PWD\.env.demo", $text)
+```
+`CORS_ORIGINS` is a comma-separated list of exact addresses (no wildcards, no trailing slash). If
+you later change the Vercel address, edit `.env.demo` and restart the API.
+
+### V5. Create the demo database and start the API
+Follow **Path A step 3** (database, `alembic upgrade head`, `app.bootstrap`) and **step 4** (start
+the API in its own window) exactly as written above.
+
+### V6. Check it works (before the audience arrives)
+1. `https://random-words.trycloudflare.com/api/health` must show `"status":"ok"`.
+2. Open your Vercel address in a **private browser window on your phone using mobile data**. If a
+   Vercel login page appears instead of the site, open the project in the Vercel dashboard →
+   Settings → Deployment Protection and make the production address public. (Not verified for your
+   account.)
+3. Run the patient → staff walk-through from Path A step 8.
+
+Troubleshooting: if the site loads but every action fails, check in this order: the tunnel window is
+still open and its address matches the one in `VITE_API_BASE_URL`; the API window is running;
+`CORS_ORIGINS` contains exactly the Vercel address you opened.
+
+Note: Vercel's free Hobby plan is meant for non-commercial use; a demonstration is fine, but read
+their current terms before anything commercial.
+
+---------------------------------------------------------------------------------------------
+
 ## Path B — permanent hosting (after the demo)
 
 Requirements measured on this project:
