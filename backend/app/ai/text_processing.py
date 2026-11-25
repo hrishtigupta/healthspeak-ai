@@ -69,7 +69,8 @@ _TRIGGER_HEAD = (
 _TRIGGER_TAIL = r"(?:\s+(?!and\b|but\b|or\b|for\b|since\b|i\b|it\b|so\b)[a-z]+){0,2}"
 _TRIGGER_PATTERN = rf"\b{_TRIGGER_HEAD}\b{_TRIGGER_TAIL}"
 
-_CLAUSE_BREAK = re.compile(r"[.;!?\n]|\bbut\b|\bhowever\b|\balthough\b", re.IGNORECASE)
+_CLAUSE_BREAK = re.compile(
+    r"[.;!?\n]|\bbut\b|\bhowever\b|\balthough\b|,\s*(?=(?:i|the|my|it)\b)", re.IGNORECASE)
 # Context uses a slightly finer split so "I had fever last week and now I have a cough" separates.
 _CTX_BREAK = re.compile(
     r"[.;!?\n]|\bbut\b|\bhowever\b|\balthough\b|\bnow\b|,\s*(?=i\b)|\band\s+(?=(?:i|he|she|my)\b)",
@@ -124,8 +125,17 @@ _NEGATION_RES = [_phrase_regex(c) for c in NEGATION_CUES]
 _NOT_NEGATION = re.compile(r"\bnot\s+(?:sure|certain)\b", re.IGNORECASE)
 
 
+# "have not taken azithromycin" denies a MEDICINE, not the symptom that follows it
+# ("..., the cough has been for three days"). Such phrases are not symptom negation.
+_MEDICINE_NEGATION = re.compile(
+    r"\b(?:not|never|no|haven't|have\s+not|hasn't|has\s+not|didn't|did\s+not|don't|do\s+not|doesn't|"
+    r"does\s+not)\s+(?:yet\s+|been\s+|really\s+)?"
+    r"(?:taken|take|taking|took|started|start|starting|using|use|used|given|finished|applied|"
+    r"swallowed)\b", re.IGNORECASE)
+
+
 def is_negated(text: str, start: int) -> bool:
-    prefix = _NOT_NEGATION.sub(" ", _clause_prefix(text, start))
+    prefix = _MEDICINE_NEGATION.sub(" ", _NOT_NEGATION.sub(" ", _clause_prefix(text, start)))
     return any(r.search(prefix) for r in _NEGATION_RES)
 
 

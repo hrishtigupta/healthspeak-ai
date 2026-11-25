@@ -27,6 +27,17 @@ NUMBER_WARNING = ("The numbers in the original text are missing from the English
                   "quantity may have been changed - read the original.")
 
 
+ROMANIZED_WARNING = ("This text was submitted as Hindi/Urdu but is written in English (Latin) letters, e.g. "
+                     "'bukhar nahi hai'. The translation model expects Devanagari or Urdu script, so the "
+                     "English text may be wrong or meaningless - read the original.")
+_INDIC_ARABIC_LETTER = re.compile(r"[ऀ-ॿ؀-ۿ]")
+
+
+def is_romanized(text: str) -> bool:
+    """True if the text has several words but no Devanagari/Urdu letters at all."""
+    return (not _INDIC_ARABIC_LETTER.search(text)) and len(re.findall(r"[A-Za-z]{2,}", text)) >= 2
+
+
 _NUMBER_WORDS = {w: str(i) for i, w in enumerate(
     ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
      "eleven", "twelve"])}
@@ -43,6 +54,8 @@ def _digits(text: str) -> list[str]:
 def check(original_text: str, english_text: str) -> list[str]:
     """Return human-readable warnings (empty if nothing looks lost)."""
     warnings: list[str] = []
+    if is_romanized(original_text):
+        warnings.append(ROMANIZED_WARNING)
     original_words = set(_WORD.findall(original_text))
     if original_words & _NEGATION_ORIGINAL and not _NEGATION_ENGLISH.search(english_text):
         warnings.append(NEGATION_WARNING)
