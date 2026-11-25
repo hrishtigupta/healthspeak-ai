@@ -77,3 +77,5 @@ html[lang=ur] h1,html[lang=ur] h2,html[lang=ur] h3,html[lang=ur] .btn{line-heigh
 .history{border-left:4px solid #3b82c4;padding-left:14px}
 .history .encounter ul{margin:4px 0 4px 18px}
 [dir=rtl] .history{border-left:0;padding-left:0;border-right:4px solid #3b82c4;padding-right:14px}
+.script-hint{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#eef5fb;border:1px solid #bcd6ee;color:#23496b;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px;line-height:1.5}
+.script-hint button{border:1px solid #3b82c4;background:#fff;color:#245d94;border-radius:8px;padding:6px 10px;font:inherit;font-weight:700;cursor:pointer}

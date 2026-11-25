@@ -65,6 +65,7 @@ import {
   formatDate,
 } from "./services/intake.js";
 import { Btn, Brand, Field, Info, Stat, ModalBox, initials, pad2 } from "./components/ui.jsx";
+import { isRomanizedIndic } from "./utils/script.js";
 import QueuePanel from "./pages/staff/QueuePanel.jsx";
 import { HistoryPanel, StatusChip, SymptomsPanel } from "./pages/staff/IntakeInsights.jsx";
 import VisitWorkspace from "./pages/staff/VisitWorkspace.jsx";
@@ -931,6 +932,14 @@ export default function App() {
                   <Mic />
                 </button>
               </div>
+              {isRomanizedIndic(message, LANGUAGE_CODES[language]) && (
+                <div className="script-hint" role="status" data-testid="script-hint">
+                  <span>{t(LANGUAGE_CODES[language] === "ur" ? "chat.scriptHintUr" : "chat.scriptHintHi")}</span>
+                  <button type="button" onClick={() => go("voice")}>
+                    {t("chat.scriptHintVoice")}
+                  </button>
+                </div>
+              )}
               <div className="sendline">
                 <input
                   value={message}
