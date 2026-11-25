@@ -30,19 +30,22 @@ winget install --id Cloudflare.cloudflared
 ```
 Close and reopen PowerShell afterwards. (No account needed for a quick tunnel.)
 
-### 1. Decide the website address
-Open Netlify → your site → copy its address, e.g. `https://my-healthspeak.netlify.app`
-(no trailing slash). Call it `NETLIFY_URL`.
+### 1. Your website address
+This project's Netlify site is `https://tourmaline-pie-5c1bb1.netlify.app` (no trailing slash).
+The backend only accepts browser requests from exactly this address.
 
 ### 2. Make a separate demo settings file (never commit it; `.env.*` is already git-ignored)
-In the repository folder create the file `.env.demo` with:
+Run this in PowerShell. It copies the database password from your `.env` into a new `.env.demo`
+without printing it:
+```powershell
+cd C:\Users\mukti\OneDrive\Desktop\HealthSpeakAI\healthspeak-ai
+$pw = (Select-String -Path .env -Pattern '^POSTGRES_PASSWORD=(.*)$').Matches[0].Groups[1].Value.Trim()
+$text = "DATABASE_URL=postgresql+psycopg://healthspeak:$pw@127.0.0.1:5432/healthspeak_demo`nAPP_ENV=production`nCORS_ORIGINS=https://tourmaline-pie-5c1bb1.netlify.app`n"
+[System.IO.File]::WriteAllText("$PWD\.env.demo", $text)
 ```
-DATABASE_URL=postgresql+psycopg://healthspeak:PASTE_THE_POSTGRES_PASSWORD_FROM_YOUR_.env@127.0.0.1:5432/healthspeak_demo
-APP_ENV=production
-CORS_ORIGINS=https://my-healthspeak.netlify.app
-```
-Replace the password and the Netlify address. `APP_ENV=production` turns on the safety checks (it
-refuses to start with demo passwords or localhost CORS, and hides `/docs`).
+(`WriteAllText` is used on purpose: PowerShell's `Set-Content -Encoding utf8` adds a hidden marker
+that breaks the first setting.) `APP_ENV=production` turns on the safety checks: it refuses to
+start with demo passwords or localhost CORS, and hides `/docs`.
 
 ### 3. Create a NEW demo database (your development data is not touched)
 ```powershell
