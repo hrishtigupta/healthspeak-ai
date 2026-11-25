@@ -66,6 +66,7 @@ import {
 } from "./services/intake.js";
 import { Btn, Brand, Field, Info, Stat, ModalBox, initials, pad2 } from "./components/ui.jsx";
 import QueuePanel from "./pages/staff/QueuePanel.jsx";
+import { HistoryPanel, StatusChip, SymptomsPanel } from "./pages/staff/IntakeInsights.jsx";
 import VisitWorkspace from "./pages/staff/VisitWorkspace.jsx";
 import DoctorHome from "./pages/doctor/DoctorHome.jsx";
 import AdminHome from "./pages/admin/AdminHome.jsx";
@@ -1073,6 +1074,7 @@ export default function App() {
           onRetryTranslation={retryReviewTranslation}
           onReanalyse={reanalyse}
           departments={departments}
+          notify={notify}
         />
       )}
       {page === "workspace" && visitId && user && (
@@ -1466,6 +1468,7 @@ function IntakeReview({
   onRetryTranslation,
   onReanalyse,
   departments,
+  notify,
 }) {
   const [text, SetText] = useState(
     intake.final_text || intake.english_text || "",
@@ -1518,6 +1521,7 @@ function IntakeReview({
                 {confirmed ? "Confirmed by staff" : "Unreviewed"}
               </span>
             </div>
+            <HistoryPanel intakeId={intake.id} />
             <div className="workspace-section">
               <span className="eyebrow">
                 PATIENT'S ORIGINAL WORDS · {LANGUAGE_NAMES[intake.original_language].toUpperCase()}
@@ -1611,6 +1615,7 @@ function IntakeReview({
               )}
             </div>
             <AnalysisPanel analysis={a} busy={busy} onReanalyse={onReanalyse} hasFinal={Boolean(intake.final_text)} />
+            <SymptomsPanel key={a ? a.id : "none"} intake={intake} notify={notify} />
           </section>
           <aside>
             <div className="side-card">
@@ -1669,7 +1674,11 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
     ambiguous: "Several departments possible — staff must choose",
     default: `No routing rule matched — default department ${sug.department_name}`,
     no_rules: "No routing rules configured",
+    out_of_scope: "No health concern found in the text — no department suggested",
   }[sug.status];
+  const reasons = [...(ex.review_reasons || []), ...(sug.review_reasons || [])];
+  const excluded = sug.excluded || [];
+  const unmatched = ex.unmatched || [];
   return (
     <div className="workspace-section analysis">
       <span className="eyebrow">
@@ -1682,6 +1691,16 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
           flag for staff, not a triage decision.
         </p>
       )}
+      {reasons.length > 0 && (
+        <div className="review-reasons">
+          <b>Check before relying on this:</b>
+          <ul>
+            {reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p>{a.summary}</p>
       <div className="analysis-grid">
         <div>
@@ -1691,6 +1710,7 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
               {ex.reported.map((m) => (
                 <li key={m.term}>
                   {m.term}: <q>{m.evidence.text}</q>
+                  {m.status === "uncertain" && <> <StatusChip value="uncertain" /></>}
                 </li>
               ))}
             </ul>
@@ -1698,6 +1718,23 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
             <p>None identified</p>
           )}
         </div>
+        {((ex.historical || []).length > 0 || (ex.third_party || []).length > 0) && (
+          <div>
+            <small>Not the patient's current symptoms</small>
+            <ul>
+              {(ex.historical || []).map((m) => (
+                <li key={"h" + m.term}>
+                  {m.term}: <q>{m.evidence.text}</q> <StatusChip value="historical" />
+                </li>
+              ))}
+              {(ex.third_party || []).map((m) => (
+                <li key={"t" + m.term}>
+                  {m.term}: <q>{m.evidence.text}</q> <StatusChip value="third_party" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div>
           <small>Said they do NOT have</small>
           {ex.denied.length ? (
@@ -1734,9 +1771,21 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
           </>
         )}
       </p>
+      {excluded.length > 0 && (
+        <small className="suggestion">
+          Not used for routing:{" "}
+          {excluded.map((x) => `"${x.evidence}" (${x.reason.replace("_", " ")})`).join("; ")}
+        </small>
+      )}
+      {unmatched.length > 0 && (
+        <small className="suggestion">
+          Text not matched to any symptom (read it yourself):{" "}
+          {unmatched.map((u) => `"${u.text}"`).join(" / ")}
+        </small>
+      )}
       <small>
-        Rule-based suggestion, not a diagnosis. Rules {a.ruleset_version} ·{" "}
-        {a.engine_version}
+        Rule-based suggestion, not a diagnosis, no confidence score (rule weights are not probabilities).
+        Staff must confirm the department. Rules {a.ruleset_version} · {a.engine_version}
       </small>
       {hasFinal && (
         <div className="actions">

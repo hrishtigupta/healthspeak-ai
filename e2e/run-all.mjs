@@ -71,6 +71,7 @@ const suites = [
   ["06-structured-intake.mjs"],
   ["07-queue-appointments.mjs"],
   ["08-languages-kiosk.mjs"],
+  ["09-symptoms-history.mjs"],
 ];
 
 const original = await demoPatientLanguage(pw, "en");

@@ -89,3 +89,31 @@ export const formatDate = (iso) =>
         minute: "2-digit",
       })
     : "";
+
+// ----- staff: symptoms and the patient's earlier encounters -----
+// History is requested by intake id (the server finds the verified patient record). It is kept
+// only in component state, never in storage or logs.
+export const getIntakeHistory = (id, { limit = 5, offset = 0 } = {}) =>
+  api(`/intakes/${id}/history?limit=${limit}&offset=${offset}`);
+
+export const reviewSymptom = (intakeId, symptomId, { action, term, status, note }) =>
+  api(`/intakes/${intakeId}/symptoms/${symptomId}/review`, {
+    method: "POST",
+    body: {
+      action,
+      ...(term ? { term } : {}),
+      ...(status ? { status } : {}),
+      ...(note ? { note } : {}),
+    },
+  });
+
+export const addSymptom = (intakeId, { term, status, evidenceText, note }) =>
+  api(`/intakes/${intakeId}/symptoms`, {
+    method: "POST",
+    body: {
+      term,
+      status,
+      ...(evidenceText ? { evidence_text: evidenceText } : {}),
+      ...(note ? { note } : {}),
+    },
+  });
