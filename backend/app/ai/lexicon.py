@@ -8,7 +8,7 @@ term is only extracted when one of its phrases actually appears in the text.
 Bump LEXICON_VERSION whenever this list changes (it is stored with each analysis).
 """
 
-LEXICON_VERSION = "lex-2026-11-24"
+LEXICON_VERSION = "lex-2026-11-25"
 
 SYMPTOMS: dict[str, list[str]] = {
     "fever": ["fever", "feverish", "high temperature"],
@@ -50,8 +50,34 @@ SYMPTOMS: dict[str, list[str]] = {
     "weight change": ["weight loss", "lost weight", "weight gain", "gained weight"],
     "sleep problem": ["can't sleep", "cannot sleep", "trouble sleeping", "insomnia"],
     "low mood or anxiety": ["anxious", "anxiety", "depressed", "low mood", "panic attack", "panic attacks"],
+    "body pain": ["body ache", "body aches", "body pain", "aching all over", "pain all over"],
+    "chills": ["chills", "shivering", "shivers"],
+    "loss of appetite": ["loss of appetite", "poor appetite", "no appetite", "lost my appetite"],
     "pain (location not stated)": ["pain", "aching", "ache", "hurts"],
 }
+
+# Stable internal identifiers ("hs.<term>"). These are NOT SNOMED CT / ICD codes. Mapping to an
+# external terminology must be done and validated by a clinical terminologist; until then
+# `external_codes` stays empty so we never present guessed codes as standard.
+EXTERNAL_CODES: dict[str, dict[str, str]] = {}
+
+
+def symptom_id(term: str) -> str:
+    return "hs." + "_".join(term.replace("(", "").replace(")", "").split())
+
+
+# Words (>= 6 letters, one edit away from a vocabulary word) that are ordinary English and must
+# never be "corrected" into a symptom by the conservative fuzzy matcher.
+FUZZY_STOPWORDS = {
+    "breeding", "feeding", "leading", "weeding", "seeding", "reading", "heading", "healing",
+    "wheeling", "hearing",
+}
+
+# Words that suggest the patient is describing a health problem even if we did not recognise it.
+HEALTH_CUES = ["pain", "hurt", "hurts", "ache", "sick", "ill", "unwell", "problem", "trouble", "feel",
+               "feeling", "bleed", "swell", "swollen", "symptom", "symptoms", "burning", "itch",
+               "injury", "wound", "cut", "burn", "weak", "dizzy", "breath", "pregnant", "doctor",
+               "medicine", "tablet", "allergy", "infection", "lump", "rash", "fever", "cough"]
 
 # Words that switch a symptom mention into "denied" when they appear shortly before it
 # in the same clause ("no fever", "I don't have a cough", "without vomiting").
