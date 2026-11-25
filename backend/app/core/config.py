@@ -1,5 +1,6 @@
 """Application settings, read from environment variables or the repo-root .env file."""
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -7,11 +8,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # config.py -> core -> app -> backend -> repository root
 REPO_ROOT = Path(__file__).resolve().parents[3]
+# Optional: read settings from a different file (e.g. a separate, git-ignored ".env.demo"),
+# so a demo/production run never needs edits to the development .env.
+ENV_FILE = Path(os.environ["HEALTHSPEAK_ENV_FILE"]) if os.environ.get("HEALTHSPEAK_ENV_FILE") else REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=REPO_ROOT / ".env",
+        env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",  # .env also holds POSTGRES_* values used only by Docker
     )
