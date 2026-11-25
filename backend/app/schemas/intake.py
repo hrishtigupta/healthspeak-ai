@@ -16,6 +16,8 @@ from app.core.enums import (
     TranslationStatus,
 )
 
+from app.schemas.history import SymptomOut  # noqa: E402
+
 MAX_MESSAGE_CHARS = 4000
 MAX_FINAL_TEXT_CHARS = 20000
 
@@ -174,6 +176,8 @@ class IntakeStaffView(BaseModel):
     revisions: list[IntakeRevisionOut]
     analysis: AnalysisOut | None
     confirmed_department: DepartmentRef | None
+    # Symptoms of the latest analysis with staff decisions (empty for analyses made before they existed).
+    symptoms: list[SymptomOut] = []
 
 
 class IntakePatientView(BaseModel):

@@ -6,6 +6,7 @@ from app.database.models.department import Department, RoutingRule
 from app.database.models.intake import (
     AudioTranscription,
     Conversation,
+    ExtractedSymptom,
     IntakeAnalysis,
     IntakeRecord,
     IntakeRevision,
@@ -25,7 +26,7 @@ from app.database.models.visit import (
 
 __all__ = [
     "AudioTranscription", "AuditEvent", "AuthSession", "ConsentRecord", "Conversation", "Department",
-    "IntakeAnalysis", "IntakeRecord", "RoutingRule",
+    "ExtractedSymptom", "IntakeAnalysis", "IntakeRecord", "RoutingRule",
     "IntakeRevision", "Message", "Patient", "User",
     "Appointment", "DoctorSchedule", "Notification", "QueueCounter", "QueueEntry", "QueueNote",
     "Kiosk",

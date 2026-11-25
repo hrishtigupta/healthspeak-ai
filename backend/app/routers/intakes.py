@@ -19,6 +19,7 @@ from app.core.enums import ContentLanguage, ReviewStatus, Role
 from app.core.permissions import require_roles
 from app.database.models import Conversation, IntakeRecord, Patient, User
 from app.database.session import get_db
+from app.schemas.history import HistoryOut, SymptomAdd, SymptomOut, SymptomReview
 from app.schemas.intake import (
     ConversationOut,
     IntakeConfirm,
@@ -33,9 +34,12 @@ from app.schemas.intake import (
 )
 from app.services import (
     analysis_service,
+    audit_service,
+    history_service,
     intake_service,
     patient_service,
     speech_service,
+    symptom_service,
     translation_service,
 )
 
@@ -214,6 +218,52 @@ def analyse_intake(intake_id: uuid.UUID, body: AnalyseRequest, staff: User = Dep
                             "There is no English text to analyse yet.") from None
     db.refresh(intake)
     return intake_service.staff_view(db, intake, staff)
+
+
+@router.get("/intakes/{intake_id}/history", response_model=HistoryOut)
+def intake_history(intake_id: uuid.UUID, limit: int = Query(5, ge=1, le=50), offset: int = Query(0, ge=0),
+                   staff: User = Depends(staff_only), db: Session = Depends(get_db)) -> HistoryOut:
+    """Earlier encounters of the SAME patient as this intake (matched by record id), for review."""
+    intake = _intake_or_404(intake_id, db)
+    audit_service.record(db, "patient.history_viewed", actor_user_id=staff.id, target_type="patient",
+                         target_id=intake.patient_id, details={"intake_id": str(intake.id)})
+    db.commit()
+    return history_service.for_intake(db, intake, limit=limit, offset=offset)
+
+
+_SYMPTOM_ERRORS = {
+    symptom_service.SymptomNotFound: (status.HTTP_404_NOT_FOUND, "Symptom not found"),
+    symptom_service.SymptomSuperseded: (status.HTTP_409_CONFLICT,
+                                        "This symptom is from an older analysis. Reload the intake."),
+    symptom_service.IntakeLocked: (status.HTTP_409_CONFLICT, "This intake is already confirmed."),
+    symptom_service.InvalidSymptom: (status.HTTP_422_UNPROCESSABLE_CONTENT, "Invalid symptom details."),
+}
+
+
+@router.post("/intakes/{intake_id}/symptoms/{symptom_id}/review", response_model=SymptomOut)
+def review_symptom(intake_id: uuid.UUID, symptom_id: uuid.UUID, body: SymptomReview,
+                   staff: User = Depends(staff_only), db: Session = Depends(get_db)):
+    """Confirm, reject or correct one AI-extracted symptom. The AI reading itself is never edited."""
+    intake = _intake_or_404(intake_id, db)
+    try:
+        return symptom_service.review(db, intake, symptom_id, staff, action=body.action, term=body.term,
+                                      status=body.status.value if body.status else None, note=body.note)
+    except tuple(_SYMPTOM_ERRORS) as e:
+        code, msg = _SYMPTOM_ERRORS[type(e)]
+        raise HTTPException(status_code=code, detail=msg) from None
+
+
+@router.post("/intakes/{intake_id}/symptoms", response_model=SymptomOut, status_code=status.HTTP_201_CREATED)
+def add_symptom(intake_id: uuid.UUID, body: SymptomAdd, staff: User = Depends(staff_only),
+                db: Session = Depends(get_db)):
+    """Staff record a symptom the system missed."""
+    intake = _intake_or_404(intake_id, db)
+    try:
+        return symptom_service.add_staff_symptom(db, intake, staff, term=body.term, status=body.status.value,
+                                                 evidence_text=body.evidence_text, note=body.note)
+    except tuple(_SYMPTOM_ERRORS) as e:
+        code, msg = _SYMPTOM_ERRORS[type(e)]
+        raise HTTPException(status_code=code, detail=msg) from None
 
 
 @router.post("/intakes/{intake_id}/confirm", response_model=IntakeStaffView)
