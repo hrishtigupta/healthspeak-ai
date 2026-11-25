@@ -68,7 +68,7 @@ try {
   await t("btn('End Chat')");
   await page.waitFor("document.querySelector('.overlay')");
   await page.eval("[...document.querySelectorAll('.overlay button')].find(b => b.innerText.trim() === 'End chat').click()");
-  await page.waitFor("window.__t.toast().includes('sent for staff review')");
+  await page.waitFor("window.__t.toast().includes('sent for staff review')", 120000); // real translation runs inside submit
   await page.waitFor(`window.__t.has('E2E ${stamp}')`);
   check("submitted intake appears on dashboard as awaiting review",
         await page.eval(`[...document.querySelectorAll('.history-row')].some(r => r.innerText.includes('E2E ${stamp}') && r.innerText.includes('Awaiting staff review'))`));

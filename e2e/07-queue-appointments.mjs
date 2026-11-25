@@ -105,7 +105,7 @@ try {
 
   // patient sees token, status, message, appointment
   await login("patient@example.com");
-  await page.waitFor(`window.__t.has('Your visit') && window.__t.has('${token}')`, 10000);
+  await page.waitFor(`window.__t.has('Your visit') && window.__t.has('${token}') && window.__t.has('With doctor')`, 15000);
   check("patient sees token and 'With doctor'", (await t(`has('${token}')`)) && (await t("has('With doctor')")));
   check("patient got 'It's your turn' message", await t("has(\"It's your turn\")"));
   check("patient sees upcoming appointment", await t("has('UPCOMING APPOINTMENTS')") && await t("has('Dr. Demo Doctor')"));
@@ -125,7 +125,7 @@ try {
 
   // admin totals, no names
   await login("admin@example.com");
-  await page.waitFor("window.__t.has('Hospital overview') && window.__t.has('ACTIVE ACCOUNTS')", 10000);
+  await page.waitFor("window.__t.has('Hospital overview') && window.__t.has('ACTIVE ACCOUNTS') && window.__t.has('SYSTEM HEALTH') && window.__t.has('QUEUE TODAY') && window.__t.has('KIOSKS')", 15000);
   check("admin dashboard shows totals, system health and kiosks", (await t("has('SYSTEM HEALTH')")) && (await t("has('QUEUE TODAY')")) && (await t("has('KIOSKS')")));
   check("admin dashboard shows no patient names", !(await t("has('Demo Patient')")) && !(await t(`has('P7-${RUN}')`)));
   await logout();
