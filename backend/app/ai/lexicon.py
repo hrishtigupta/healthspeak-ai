@@ -8,7 +8,7 @@ term is only extracted when one of its phrases actually appears in the text.
 Bump LEXICON_VERSION whenever this list changes (it is stored with each analysis).
 """
 
-LEXICON_VERSION = "lex-2026-11-26"
+LEXICON_VERSION = "lex-2026-11-26b"
 
 SYMPTOMS: dict[str, list[str]] = {
     "fever": ["fever", "feverish", "high temperature"],
@@ -56,6 +56,39 @@ SYMPTOMS: dict[str, list[str]] = {
     "pain (location not stated)": ["pain", "aching", "ache", "hurts"],
 }
 
+# Everyday ways of saying "<body part> hurts" ("my stomach has been hurting"). Generated from this
+# table so the list stays reviewable: each body part maps to ONE vocabulary term above.
+_BODY_PART_TERMS = {
+    "stomach": "stomach pain", "tummy": "stomach pain", "belly": "stomach pain",
+    "abdomen": "stomach pain", "lower abdomen": "stomach pain", "upper abdomen": "stomach pain",
+    "head": "headache", "chest": "chest pain", "back": "back pain", "lower back": "back pain",
+    "knee": "knee pain", "knees": "knee pain", "neck": "neck pain", "ear": "ear pain",
+    "tooth": "toothache", "throat": "sore throat", "joints": "joint pain", "eyes": "eye problem",
+}
+_HURT_PATTERNS = [
+    "{p} hurts", "{p} hurting", "{p} is hurting", "{p} has been hurting", "{p} have been hurting",
+    "{p} was hurting", "{p} is paining", "{p} paining", "{p} is painful", "{p} aching",
+    "{p} is aching", "pain in the {p}", "pain in {p}",
+]
+for _part, _term in _BODY_PART_TERMS.items():
+    for _pattern in _HURT_PATTERNS:
+        _phrase = _pattern.format(p=_part)
+        if _phrase not in SYMPTOMS[_term]:
+            SYMPTOMS[_term].append(_phrase)
+
+_PHRASE_TO_TERM: dict[str, str] = {}
+
+
+def term_for_phrase(phrase: str) -> str | None:
+    """The vocabulary term a phrase belongs to ("abdominal pain" -> "stomach pain"), or None."""
+    if not _PHRASE_TO_TERM:
+        for term, phrases in SYMPTOMS.items():
+            _PHRASE_TO_TERM.setdefault(term.lower(), term)
+            for p in phrases:
+                _PHRASE_TO_TERM.setdefault(p.lower(), term)
+    return _PHRASE_TO_TERM.get(phrase.strip().lower())
+
+
 # Stable internal identifiers ("hs.<term>"). These are NOT SNOMED CT / ICD codes. Mapping to an
 # external terminology must be done and validated by a clinical terminologist; until then
 # `external_codes` stays empty so we never present guessed codes as standard.
@@ -70,7 +103,8 @@ def symptom_id(term: str) -> str:
 # never be "corrected" into a symptom by the conservative fuzzy matcher.
 FUZZY_STOPWORDS = {
     "breeding", "feeding", "leading", "weeding", "seeding", "reading", "heading", "healing",
-    "wheeling", "hearing",
+    "wheeling", "hearing", "hunting", "painting", "raining", "training", "gaining", "pointing",
+    "hurling", "pairing", "parting", "acting",
 }
 
 # Words that suggest the patient is describing a health problem even if we did not recognise it.

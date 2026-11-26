@@ -4,6 +4,7 @@ Safety: the assistant only acknowledges messages with fixed text. It never
 interprets symptoms, diagnoses or advises; staff review every intake.
 """
 
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -43,6 +44,7 @@ from app.services import (
     analysis_service,
     audit_service,
     department_service,
+    dialogue_service,
     notification_service,
     patient_service,
     queue_service,
@@ -51,6 +53,7 @@ from app.services import (
 )
 
 MAX_PATIENT_MESSAGES = 50
+logger = logging.getLogger(__name__)
 
 ACKNOWLEDGEMENTS = {
     ContentLanguage.EN: (
@@ -150,9 +153,14 @@ def add_message(db: Session, conv: Conversation, data: MessageCreate) -> tuple[M
     mine = Message(conversation=conv, seq=seq + 1, sender=MessageSender.PATIENT.value,
                    input_mode=data.input_mode.value, language=data.language.value,
                    content=data.content)
+    try:
+        reply_text, reply_meta = dialogue_service.reply_to(db, conv, mine)
+    except Exception:  # noqa: BLE001 - never lose the patient's message because analysis failed
+        logger.exception("Dialogue reply failed; using the plain acknowledgement")
+        reply_text, reply_meta = ACKNOWLEDGEMENTS[data.language], {"stage": "fallback"}
     ack = Message(conversation=conv, seq=seq + 2, sender=MessageSender.ASSISTANT.value,
                   input_mode=InputMode.TEXT.value, language=data.language.value,
-                  content=ACKNOWLEDGEMENTS[data.language])
+                  content=reply_text, meta=reply_meta)
     db.add_all([mine, ack])
     conv.updated_at = _now()
     if transcription is not None:

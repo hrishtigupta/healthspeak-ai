@@ -3,7 +3,7 @@
 import { launch } from "./cdp.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
-const APP = "http://127.0.0.1:5173/";
+const APP = process.env.E2E_APP || "http://127.0.0.1:5173/";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + String(extra).slice(0, 160) : ""}`); };
 
@@ -35,7 +35,7 @@ async function patientSubmits(text) {
   await page.eval("window.__t.set(document.querySelector('.compose-tools select'), 'English')");
   await t(`set(window.__t.byPh('Type your message'), ${JSON.stringify(text)})`);
   await t("btn('Send')");
-  await page.waitFor("window.__t.has('added to your intake')");
+  await page.waitFor("document.querySelectorAll('.message.doctor .bubble > p:not(.thinking)').length >= 2", 30000);
   await t("btn('End Chat')");
   await page.waitFor("document.querySelector('.overlay')");
   await page.eval("[...document.querySelectorAll('.overlay button')].find(b => b.innerText.trim() === 'End chat').click()");

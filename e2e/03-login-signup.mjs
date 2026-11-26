@@ -2,7 +2,7 @@
 import { launch, HELPERS, sleep } from "./cdp.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
-const APP = "http://127.0.0.1:5173/";
+const APP = process.env.E2E_APP || "http://127.0.0.1:5173/";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + extra : ""}`); };
 
@@ -35,7 +35,7 @@ try {
   await t("btn('Log out')");
   await page.waitFor("window.__t.has('Your Health,') && window.__t.toast().includes('logged out')");
   check("logout returns home and clears token", !(await page.eval("sessionStorage.getItem('healthspeak.token')")));
-  const meAfter = await page.eval(`fetch('http://127.0.0.1:8000/api/users/me',{headers:{Authorization:'Bearer ${staffToken}'}}).then(r=>r.status)`);
+  const meAfter = await page.eval(`fetch('${process.env.E2E_API || "http://127.0.0.1:8000/api"}/users/me',{headers:{Authorization:'Bearer ${staffToken}'}}).then(r=>r.status)`);
   check("old token rejected by server after logout", meAfter === 401, `status ${meAfter}`);
 
   // 4. patient sign-up with consent

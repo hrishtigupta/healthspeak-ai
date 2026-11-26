@@ -33,6 +33,9 @@ def translate_intake(db: Session, intake: IntakeRecord, actor: User | None) -> I
         for m in patient_msgs:
             if m.language == ContentLanguage.EN.value:
                 parts.append(m.content)
+            elif m.english_text:  # already translated while chatting: reuse, do not translate twice
+                parts.append(m.english_text)
+                model = (m.meta or {}).get("translation_model") or model
             else:
                 result = engine.translate(m.content, ContentLanguage(m.language))
                 parts.append(result.text)

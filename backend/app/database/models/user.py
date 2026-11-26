@@ -33,3 +33,5 @@ class User(UuidPk, Timestamps, Base):
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set only when the account holder proved they receive SMS on `phone` (one-time code).
+    phone_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

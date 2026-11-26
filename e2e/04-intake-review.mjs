@@ -3,7 +3,7 @@ import { launch } from "./cdp.mjs";
 import { translationState } from "./translation-state.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
-const APP = "http://127.0.0.1:5173/";
+const APP = process.env.E2E_APP || "http://127.0.0.1:5173/";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + String(extra).slice(0, 160) : ""}`); };
 
@@ -53,7 +53,7 @@ try {
   await page.eval("window.__t.set(document.querySelector('.compose-tools select'), 'English')");
   await t(`set(window.__t.byPh('Type your message'), ${JSON.stringify(EN_MSG)})`);
   await t("btn('Send')");
-  await page.waitFor(`window.__t.has(${JSON.stringify(EN_MSG)}) && window.__t.has('added to your intake')`);
+  await page.waitFor(`window.__t.has(${JSON.stringify(EN_MSG)}) && document.querySelectorAll('.message.doctor .bubble > p:not(.thinking)').length >= 2`, 30000);
   check("text message saved and acknowledged", true);
 
   // voice screen (browser transcript typed/reviewed) in Hindi
@@ -73,7 +73,7 @@ try {
   check("submitted intake appears on dashboard as awaiting review",
         await page.eval(`[...document.querySelectorAll('.history-row')].some(r => r.innerText.includes('E2E ${stamp}') && r.innerText.includes('Awaiting staff review'))`));
   await page.eval(`[...document.querySelectorAll('.history-row')].find(r => r.innerText.includes('E2E ${stamp}')).querySelector('button').click()`);
-  await page.waitFor("window.__t.has('Your submitted concern')");
+  await page.waitFor("window.__t.has('Past History') && document.querySelector('.history-item.focused')");
   check("summary shows the patient's exact words", (await t(`has(${JSON.stringify(HI_MSG)})`)) && (await t("has('Awaiting staff review')")));
   await t("btn('Back')");
   await logout();

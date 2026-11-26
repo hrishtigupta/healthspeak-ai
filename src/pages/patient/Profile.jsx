@@ -5,6 +5,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Btn, Field, Info } from "../../components/ui.jsx";
 import { GENDER_CODES, LANGUAGE_CODES, getMyProfile, updateMyProfile } from "../../services/auth.js";
 import { translateError } from "../../i18n/index.js";
+import PhoneSection from "./PhoneSection.jsx";
 
 export default function Profile({ onBack, onSaved, notify }) {
   const { t } = useTranslation();
@@ -111,12 +112,16 @@ export default function Profile({ onBack, onSaved, notify }) {
               </select>
             </label>
             <div className="summary-grid">
-              <Info label={t("auth.mobile")} value={profile.phone || "—"} />
               <Info label={t("profile.email")} value={profile.email || "—"} />
             </div>
-            <p className="disclaimer">
-              <ShieldCheck /> {t("profile.contactNote")}
-            </p>
+            <PhoneSection
+              profile={profile}
+              notify={notify}
+              onChanged={(p) => {
+                SetProfile(p);
+                onSaved(p);
+              }}
+            />
             <p className="disclaimer">
               <ShieldCheck /> {t("profile.historyUnchanged")}
             </p>

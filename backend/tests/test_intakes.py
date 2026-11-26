@@ -79,7 +79,10 @@ def test_acknowledgement_never_contains_medical_advice(client, patient):
         ack = client.post(f"/api/conversations/{cid}/messages", headers=h,
                           json={"content": "chest pain", "language": lang}).json()["assistant_message"]
         assert ack["language"] == lang
-        lowered = ack["content"].lower()
+        # The assistant may DISCLAIM diagnosing/prescribing (a fixed sentence); it must never do either.
+        from app.ai.dialogue_text import TEMPLATES
+
+        lowered = ack["content"].replace(TEMPLATES[lang]["prelim"], "").lower()
         for pattern in (r"\bdiagnos", r"\bprescri", r"\byou have\b", r"\btake\b", r"\bdose\b"):
             assert not re.search(pattern, lowered), pattern
 

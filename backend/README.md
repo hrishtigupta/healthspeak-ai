@@ -438,9 +438,12 @@ the page.
 ## Profile, past history and forgot-password (patients)
 
 - **My Profile** (`GET/PATCH /api/patients/me`): a patient can change name, date of birth, gender and
-  speaking language. Mobile number and email are shown read-only (they are the login; changing them
-  is done at the front desk). Past visits are never copied from the profile, so editing it cannot
-  change them.
+  speaking language. Past visits are never copied from the profile, so editing it cannot change them.
+- **Mobile number** (`POST /api/patients/me/phone/request` then `/confirm`): add, verify or change the
+  number. The code goes to the NEW number; the current number keeps working (login, password reset)
+  until the code is confirmed. A number already used by another account is refused (both when asking
+  and when confirming). Numbers that existed before this feature show "Not verified" until confirmed.
+  `phone_verified` is true only after an SMS code was entered.
 - **Past History** (`GET /api/patients/me/history`): its own page, read-only. The dashboard's
   *View* button on a submitted concern opens this page with that visit highlighted.
 - **Forgot password by SMS code** (`POST /api/auth/password-reset/request` then `/confirm`):
@@ -448,10 +451,41 @@ the page.
   one new code per minute and 5 per hour. The request step answers the same for every number. A
   successful reset signs the account out on all devices and clears any login lockout. Staff, doctor
   and admin passwords are still reset by an administrator.
-- **Delivery:** `SMS_PROVIDER=console` (default) prints the code in the API window - local demo only,
-  refused in production. `SMS_PROVIDER=twilio` sends a real SMS (needs your Twilio account; the Twilio
-  call itself is not tested here). Sending phone numbers to an SMS provider is a privacy decision for
-  the hospital to approve first.
+- **Delivery is never faked.** If SMS cannot be delivered (provider not configured, or it refuses the
+  message) the API answers `503` with a clear message and the screen shows it; a code that was not
+  delivered is cancelled. `SMS_PROVIDER=console` (default) is a **development mode**: nothing is sent;
+  the code is printed in the API window AND shown on screen in a banner that says so. That happens only
+  when `APP_ENV=development` and `SMS_PROVIDER=console` (hide it with `DEV_OTP_ECHO=false`); in any other
+  setup the code is never returned or logged, and the console provider is refused in production.
+  `SMS_PROVIDER=twilio` sends a real SMS (needs `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_FROM_NUMBER`; the Twilio call itself has only been tested with a stand-in, not a real account).
+  Sending phone numbers to an SMS provider is a privacy decision for the hospital to approve first.
+
+## Chat assistant: follow-up questions and a preliminary department
+
+Every patient message now gets a real reply (`app/ai/dialogue.py`, `app/services/dialogue_service.py`).
+It is rule-based, not a generative model, and it never diagnoses, prescribes or reassures.
+
+1. The message is understood: English as written; Hindi/Urdu are translated with the local model
+   (`messages.english_text`, the original `content` is never changed), plus a native-script glossary as a
+   safety net (`app/ai/dialogue_text.py`) so common symptoms and "not"/"नहीं"/"نہیں" still work if the
+   model is missing.
+2. The **whole conversation so far** is analysed (extractor + routing rules), so the last message alone
+   never decides anything. Negated, past and other-person symptoms do not count. The selected language
+   is never a feature.
+3. It asks ONE useful missing question at a time (where is the pain, how long, how strong, other
+   symptoms, medicines/allergies), never the same twice, at most `DIALOGUE_MAX_QUESTIONS` (4).
+4. **Urgent symptoms** (chest pain, trouble breathing, fainting, or any hospital "attention" phrase) skip
+   the questions and give emergency guidance with `EMERGENCY_NUMBER`. Lower-right abdominal pain with
+   fever adds a "may need urgent evaluation" caution.
+5. Then it explains the **preliminary** department in the patient's language, with a match strength
+   (`clear` / `likely` / `unclear` - NOT a probability) and why. Equal scores say "staff will choose".
+6. Each assistant message stores what it understood in `messages.meta`; the patient can review the whole
+   chat and send; staff get the original messages, extracted symptoms and the saved suggestion.
+
+A routing rule now also fires when the extractor found the same symptom in other words ("my stomach has
+been hurting" matches the rule "stomach pain"), once per department and symptom. The Hindi/Urdu wording
+is DRAFT and needs review by native speakers and clinicians.
 
 ## Tests
 

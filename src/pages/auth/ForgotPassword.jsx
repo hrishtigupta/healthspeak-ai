@@ -13,13 +13,16 @@ export default function ForgotPassword({ initialIdentifier = "", close, onDone, 
   const [pw, SetPw] = useState("");
   const [pw2, SetPw2] = useState("");
   const [busy, SetBusy] = useState(false);
+  const [dev, SetDev] = useState(null); // development-only: the code, because no real SMS is sent
 
   const send = async () => {
     if (!identifier.trim()) return notify(t("forgot.needMobile"));
     if (busy) return;
     SetBusy(true);
     try {
-      await requestPasswordReset(identifier);
+      const res = await requestPasswordReset(identifier);
+      // Only present on a development server (APP_ENV=development, console SMS): never in production.
+      SetDev(res && res.dev_code ? { code: res.dev_code, notice: res.dev_notice } : null);
       SetStep(2); // same screen whether or not the account exists
     } catch (err) {
       notify(translateError(err));
@@ -65,6 +68,13 @@ export default function ForgotPassword({ initialIdentifier = "", close, onDone, 
       ) : (
         <>
           <p>{t("forgot.sent")}</p>
+          {dev && (
+            <div className="dev-banner" role="status" data-testid="dev-otp">
+              <b>{t("forgot.devTitle")}</b>
+              <span>{t("forgot.devText")}</span>
+              <code>{dev.code}</code>
+            </div>
+          )}
           <Field
             label={t("forgot.code")}
             value={code}

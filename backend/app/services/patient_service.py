@@ -55,10 +55,14 @@ def has_valid_consent(patient: Patient) -> bool:
     return s.granted and s.is_current_version
 
 
-def to_out(patient: Patient) -> PatientOut:
+def to_out(patient: Patient, user: User | None = None) -> PatientOut:
+    # "Verified" only if this is the account's own, SMS-confirmed number.
+    verified = bool(user is not None and user.phone_verified_at and user.phone
+                    and user.phone == patient.phone)
     return PatientOut(
         id=patient.id, full_name=patient.full_name, date_of_birth=patient.date_of_birth,
         age=_age(patient.date_of_birth), gender=patient.gender, phone=patient.phone,
+        phone_verified=verified,
         email=patient.email, preferred_language=patient.preferred_language,
         has_account=patient.user_id is not None, consent=consent_status(patient),
         created_at=patient.created_at,

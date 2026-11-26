@@ -2,7 +2,7 @@
 import { launch } from "./cdp.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
-const APP = "http://127.0.0.1:5173/";
+const APP = process.env.E2E_APP || "http://127.0.0.1:5173/";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + String(extra).slice(0, 200) : ""}`); };
 const page = await launch({ browser: BROWSER });
@@ -83,7 +83,7 @@ try {
   await login("patient@example.com");
   await page.waitFor(`window.__t.has('P6-${RUN}A')`);
   await page.eval(`[...document.querySelectorAll('.history-row')].find(r => r.innerText.includes('P6-${RUN}A')).querySelector('button').click()`);
-  await page.waitFor("window.__t.has('Your submitted concern')");
+  await page.waitFor("window.__t.has('Past History') && document.querySelector('.history-item.focused')");
   check("patient sees staff-confirmed department (General Medicine), not the suggestion",
         (await t("has('General Medicine')")) && !(await t("has('Cardiology')")));
   await t("btn('Back')");

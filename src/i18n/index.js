@@ -62,6 +62,11 @@ applyDocumentLanguage(i18n.language);
 const ERROR_KEYS = [
   [/^Cannot reach the HealthSpeak server/, "errors.network"],
   [/^Invalid credentials$/, "errors.invalidCredentials"],
+  [/^SMS delivery is not available/, "errors.smsUnavailable"],
+  [/^We could not send the SMS/, "errors.smsSendFailed"],
+  [/already registered to another account/, "errors.phoneInUse"],
+  [/already your verified mobile number/, "errors.phoneAlreadyVerified"],
+  [/^A code was sent recently/, "errors.codeTooSoon"],
   [/^The code is wrong or has expired/, "errors.badCode"],
   [/already exists\. Please log in\.$/, "errors.duplicateAccount"],
   [/^Please give consent/, "errors.consentNeeded"],

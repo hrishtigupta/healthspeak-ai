@@ -73,6 +73,11 @@ class MessageOut(BaseModel):
     input_mode: InputMode
     language: ContentLanguage
     content: str
+    # Machine translation of a Hindi/Urdu patient message (the original `content` is unchanged).
+    english_text: str | None = None
+    # Assistant messages: stage, question asked, symptoms understood, urgency, preliminary
+    # department. Patient messages: details found in their reply.
+    meta: dict | None = None
     created_at: datetime
 
 

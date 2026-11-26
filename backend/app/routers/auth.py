@@ -8,7 +8,7 @@ from app.database.models import AuthSession
 from app.database.session import get_db
 from app.schemas.auth import LoginRequest, LoginResponse, PasswordResetConfirm, PasswordResetRequest
 from app.schemas.user import UserOut
-from app.services import auth_service, password_reset_service
+from app.services import auth_service, password_reset_service, sms_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,9 +39,24 @@ def logout(
 
 @router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
 def password_reset_request(body: PasswordResetRequest, db: Session = Depends(get_db)) -> dict:
-    """Always the same answer, whether or not a code was sent (no account probing)."""
-    password_reset_service.request_code(db, body.identifier)
-    return {"detail": "If this account can use online reset, a code has been sent to its mobile number."}
+    """Send a code. If SMS cannot be delivered at all, say so (503) instead of pretending."""
+    st = sms_service.status()
+    if not st.ready:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "SMS delivery is not available on this server, so a code cannot be sent. "
+                            "Please ask the hospital front desk to reset your password.")
+    try:
+        issued = password_reset_service.request_code(db, body.identifier)
+    except password_reset_service.SendFailed:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "We could not send the SMS right now. Please try again in a few minutes, "
+                            "or ask the hospital front desk to reset your password.") from None
+    out: dict = {"detail": "If this account can use online reset, a code has been sent to its mobile number."}
+    if issued is not None and issued.code_for_dev_echo:
+        # Development only (APP_ENV=development with the console SMS provider). Never in production.
+        out["dev_code"] = issued.code_for_dev_echo
+        out["dev_notice"] = "Development mode: no real SMS was sent. This code is shown only because the server is in development mode."
+    return out
 
 
 @router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)

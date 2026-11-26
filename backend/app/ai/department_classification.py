@@ -29,6 +29,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Protocol
 
 from app.ai import text_processing
+from app.ai.lexicon import term_for_phrase
 from app.ai.text_processing import classify_context, find_phrase, normalize
 
 CONFIDENCE_NOTE = ("Not a calibrated probability: rule weights only rank the rules that matched. "
@@ -148,6 +149,39 @@ class RuleBasedClassifier:
                     r.department_id, r.department_code, r.department_name, 0))
                 c.score += r.weight
                 c.matches.append(counted)
+
+        # A rule phrase also fires when the extractor found the SAME vocabulary symptom in other
+        # words ("my stomach has been hurting" for the rule "stomach pain"). One rule per
+        # department and symptom, so several synonyms of one symptom never inflate the score.
+        extraction = text_processing.extract(text)
+        route_rules = [r for r in rules if r.kind == "route" and r.department_id]
+        literal = {(m_dept, term_for_phrase(r.phrase)) for c in candidates.values() for m in c.matches
+                   for r in route_rules if r.id == m.rule_id for m_dept in [r.department_id]}
+        done: set[tuple[str, str]] = set(literal)
+        excluded_already = {(x.department_code, term_for_phrase(x.phrase)) for x in excluded}
+        for mention in extraction.mentions:
+            by_dept: dict[str, Rule] = {}
+            for r in route_rules:
+                if term_for_phrase(r.phrase) == mention.term and (
+                        r.department_id not in by_dept or r.weight > by_dept[r.department_id].weight):
+                    by_dept[r.department_id] = r
+            for dept_id, r in by_dept.items():
+                key = (dept_id, mention.term)
+                if key in done:
+                    continue
+                if mention.status in ("negated", "historical", "third_party"):
+                    if (r.department_code, mention.term) not in excluded_already:
+                        excluded.append(Excluded(r.id, r.phrase, mention.evidence.text, mention.status,
+                                                 r.department_code))
+                        excluded_already.add((r.department_code, mention.term))
+                    done.add(key)
+                    continue
+                c = candidates.setdefault(dept_id, Candidate(
+                    dept_id, r.department_code, r.department_name, 0))
+                c.score += r.weight
+                c.matches.append(Match(r.id, r.phrase, r.weight, mention.evidence.text, mention.status,
+                                       mention.evidence.start, mention.evidence.end))
+                done.add(key)
 
         ranked = sorted(candidates.values(), key=lambda c: (-c.score, c.name))
         reasons: list[str] = []
