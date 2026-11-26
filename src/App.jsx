@@ -33,7 +33,6 @@ import {
   EyeOff,
   Phone,
   History,
-  ClipboardList,
   Sparkles,
   Headphones,
 } from "lucide-react";
@@ -46,6 +45,9 @@ import {
   GENDER_CODES,
   updateMyLanguage,
 } from "./services/auth.js";
+import Profile from "./pages/patient/Profile.jsx";
+import PastHistory from "./pages/patient/PastHistory.jsx";
+import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import {
   openConversation,
   sendMessage,
@@ -109,7 +111,7 @@ export default function App() {
     [message, Msg] = useState(""),
     [voice, V] = useState(""),
     [listening, Listen] = useState(false),
-    [summaryIntake, SummaryIntake] = useState(null), // intake shown on the summary page
+    [historyFocus, HistoryFocus] = useState(null), // visit highlighted on the past-history page
     [visitId, VisitId] = useState(null), // queue entry open in the visit workspace
     [staffDash, StaffDash] = useState(null), // today's counts for the staff overview
     [user, SetUser] = useState(null), // logged-in user from the backend
@@ -257,7 +259,7 @@ export default function App() {
     MyIntakeList(null);
     StaffIntakes(null);
     ReviewIntake(null);
-    SummaryIntake(null);
+    HistoryFocus(null);
     i18n.changeLanguage(deviceLanguage()); // back to this device's language
     go("home");
     notify(t("common.loggedOut"));
@@ -985,76 +987,32 @@ export default function App() {
           go={go}
           onLanguage={changeUiLanguage}
           intakes={myIntakeList}
+          onOpenHistory={() => {
+            HistoryFocus(null);
+            go("history");
+          }}
           onView={(intake) => {
-            SummaryIntake(intake);
-            go("summary");
+            HistoryFocus(intake.id);
+            go("history");
           }}
           notify={notify}
           userName={user && user.full_name}
           onLogout={doLogout}
         />
       )}
-      {page === "summary" && summaryIntake && (
-        <div className="summary">
-          <header>
-            <div>
-              <h2>{t("summary.title")}</h2>
-              <b>{formatDate(summaryIntake.created_at)}</b>
-            </div>
-            <Btn kind="outline" onClick={() => go("dashboard")}>
-              <ArrowLeft /> {t("common.back")}
-            </Btn>
-          </header>
-          <main>
-            <div className="quote">
-              <div className="avatar">{t("common.you")}</div>
-              <blockquote dir="auto">“{summaryIntake.original_text}”</blockquote>
-            </div>
-            <section className="structured">
-              <div className="section-title">
-                <h3>
-                  <ClipboardList /> {t("summary.status")}
-                </h3>
-                <span
-                  className={
-                    "status " +
-                    (summaryIntake.review_status === "confirmed" ? "done" : "wait")
-                  }
-                >
-                  {t(`review.${summaryIntake.review_status}`)}
-                </span>
-              </div>
-              <div className="summary-grid">
-                <Info
-                  label={t("summary.languageUsed")}
-                  value={t(`lang.${summaryIntake.original_language}`)}
-                />
-                <Info
-                  label={t("common.submitted")}
-                  value={formatDate(summaryIntake.created_at)}
-                />
-                <Info
-                  label={t("summary.reviewedBy")}
-                  value={
-                    summaryIntake.reviewed_at
-                      ? formatDate(summaryIntake.reviewed_at)
-                      : t("common.notYet")
-                  }
-                />
-                <Info
-                  label={t("common.department")}
-                  value={
-                    summaryIntake.confirmed_department_name ||
-                    t("common.assignedAfterReview")
-                  }
-                />
-              </div>
-              <p className="disclaimer">
-                <ShieldCheck /> {t("summary.disclaimer")}
-              </p>
-            </section>
-          </main>
-        </div>
+      {page === "profile" && user && user.role === "patient" && (
+        <Profile
+          onBack={() => go("dashboard")}
+          onSaved={(p) => SetUser({ ...user, full_name: p.full_name })}
+          notify={notify}
+        />
+      )}
+      {page === "history" && user && user.role === "patient" && (
+        <PastHistory
+          focusId={historyFocus}
+          onBack={() => go("dashboard")}
+          notify={notify}
+        />
       )}
       {page === "staff" && (
         <Staff
@@ -1097,10 +1055,16 @@ export default function App() {
         />
       )}
       {modal === "forgot" && (
-        <ModalBox title={t("auth.forgotTitle")} close={() => Modal("")}>
-          <p>{t("auth.forgotText")}</p>
-          <Btn onClick={() => Modal("")}>{t("common.close")}</Btn>
-        </ModalBox>
+        <ForgotPassword
+          initialIdentifier={email}
+          close={() => Modal("")}
+          notify={notify}
+          onDone={(identifier) => {
+            E(identifier);
+            P("");
+            Modal("");
+          }}
+        />
       )}
       {modal === "consent" && (
         <ModalBox
@@ -1195,6 +1159,7 @@ function PatientDashboard({
   onLanguage,
   intakes,
   onView,
+  onOpenHistory,
   notify,
   userName,
   onLogout,
@@ -1209,18 +1174,16 @@ function PatientDashboard({
           <button className="active">
             <LayoutDashboard /> {t("dash.nav.dashboard")}
           </button>
-          <button onClick={() => notify(t("dash.profileSoon"))}>
+          <button onClick={() => go("profile")}>
             <User /> {t("dash.nav.profile")}
           </button>
           <button onClick={() => go("chat")}>
             <MessageCircle /> {t("dash.nav.chat")}
           </button>
           <button
-            onClick={() =>
-              document
-                .getElementById("history")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
+            onClick={() => {
+              onOpenHistory();
+            }}
           >
             <History /> {t("dash.nav.history")}
           </button>

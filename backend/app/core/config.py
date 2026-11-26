@@ -43,6 +43,18 @@ class Settings(BaseSettings):
     # Country code added to bare 10-digit phone numbers ("9876543210" -> "+919876543210").
     default_phone_country_code: str = "91"
 
+    # --- Password reset by one-time code (patients only) ---
+    otp_ttl_minutes: int = 10
+    otp_max_attempts: int = 5  # wrong tries before the code is locked
+    otp_resend_seconds: int = 60  # minimum gap between codes for one account
+    otp_max_per_hour: int = 5
+    # How the code is delivered: "console" prints it in the API window (local demo only,
+    # refused when APP_ENV=production) | "twilio" sends a real SMS.
+    sms_provider: str = "console"
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_from_number: str | None = None
+
     # Password for the synthetic demo users created by `python -m app.seed`.
     seed_demo_password: str | None = None
 

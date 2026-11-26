@@ -52,3 +52,20 @@ export async function registerPatient(payload) {
   tokenStore.set(data.access_token);
   return data;
 }
+
+// ----- own profile (basic details only; never touches past visit records) -----
+export const getMyProfile = () => api("/patients/me");
+
+// fields: any of { full_name, date_of_birth, gender, preferred_language }
+export const updateMyProfile = (fields) => api("/patients/me", { method: "PATCH", body: fields });
+
+// ----- forgot password by one-time code sent to the mobile number (patients) -----
+export const requestPasswordReset = (identifier) =>
+  api("/auth/password-reset/request", { method: "POST", body: { identifier: identifier.trim() }, auth: false });
+
+export const confirmPasswordReset = (identifier, code, newPassword) =>
+  api("/auth/password-reset/confirm", {
+    method: "POST",
+    body: { identifier: identifier.trim(), code: code.trim(), new_password: newPassword },
+    auth: false,
+  });

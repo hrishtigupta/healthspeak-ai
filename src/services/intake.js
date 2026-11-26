@@ -117,3 +117,7 @@ export const addSymptom = (intakeId, { term, status, evidenceText, note }) =>
       ...(note ? { note } : {}),
     },
   });
+
+// The patient's own past visits (staff-confirmed information only).
+export const myHistory = ({ limit = 10, offset = 0 } = {}) =>
+  api(`/patients/me/history?limit=${limit}&offset=${offset}`);

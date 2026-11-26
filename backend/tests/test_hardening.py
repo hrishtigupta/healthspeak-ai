@@ -20,6 +20,9 @@ PUBLIC = {
     ("GET", "/api/health"), ("GET", "/api/health/db"), ("POST", "/api/auth/login"),
     ("GET", "/api/consent/current"), ("POST", "/api/patients/register"),
     ("POST", "/api/kiosks/heartbeat"),  # needs a kiosk key instead of a login
+    # Forgot-password by SMS code: the caller is by definition logged out. Safety lives in the
+    # service (same answer for every number, attempt limits, resend limits, patients only).
+    ("POST", "/api/auth/password-reset/request"), ("POST", "/api/auth/password-reset/confirm"),
 }
 DUMMY_ID = "00000000-0000-0000-0000-000000000000"
 

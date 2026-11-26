@@ -435,6 +435,24 @@ translations, and kiosks online.
 fields, `aria-live` notifications, reduced-motion support, `lang`/`dir` set on
 the page.
 
+## Profile, past history and forgot-password (patients)
+
+- **My Profile** (`GET/PATCH /api/patients/me`): a patient can change name, date of birth, gender and
+  speaking language. Mobile number and email are shown read-only (they are the login; changing them
+  is done at the front desk). Past visits are never copied from the profile, so editing it cannot
+  change them.
+- **Past History** (`GET /api/patients/me/history`): its own page, read-only. The dashboard's
+  *View* button on a submitted concern opens this page with that visit highlighted.
+- **Forgot password by SMS code** (`POST /api/auth/password-reset/request` then `/confirm`):
+  patients only. 6-digit code, valid 10 minutes, stored only as a hash, locked after 5 wrong tries,
+  one new code per minute and 5 per hour. The request step answers the same for every number. A
+  successful reset signs the account out on all devices and clears any login lockout. Staff, doctor
+  and admin passwords are still reset by an administrator.
+- **Delivery:** `SMS_PROVIDER=console` (default) prints the code in the API window - local demo only,
+  refused in production. `SMS_PROVIDER=twilio` sends a real SMS (needs your Twilio account; the Twilio
+  call itself is not tested here). Sending phone numbers to an SMS provider is a privacy decision for
+  the hospital to approve first.
+
 ## Tests
 
 `pytest` uses a separate database named `healthspeak_test` (created
