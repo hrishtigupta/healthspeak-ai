@@ -26,6 +26,7 @@ from app.core.enums import ContentLanguage
 INDIC_CODES = {
     ContentLanguage.HI: "hin_Deva",
     ContentLanguage.UR: "urd_Arab",
+    ContentLanguage.DOI: "doi_Deva",  # Dogri: in the model's vocabulary; quality checked, see README
 }
 TARGET = "eng_Latn"
 

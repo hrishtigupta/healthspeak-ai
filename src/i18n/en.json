@@ -1,5 +1,5 @@
 {
-  "lang": { "en": "English", "hi": "Hindi", "ur": "Urdu", "display": "Display language", "speaking": "I will speak in" },
+  "lang": { "en": "English", "hi": "Hindi", "ur": "Urdu", "doi": "Dogri — डोगरी", "display": "Display language", "speaking": "I will speak in" },
   "common": {
     "login": "Log in", "logout": "Log out", "signup": "Sign up", "back": "Back", "backHome": "Back to home",
     "loading": "Loading...", "close": "Close", "open": "Open", "view": "View", "review": "Review",
@@ -74,7 +74,8 @@
     "notSupported": "Recording is not supported in this browser. Please type your concern.",
     "blocked": "Microphone access was blocked. Allow the microphone, or type your concern instead.",
     "speakFirst": "Please speak or enter your health concern first.",
-    "waitTranscribe": "Please wait until the recording has been transcribed."
+    "waitTranscribe": "Please wait until the recording has been transcribed.",
+    "limited": "Speech recognition for this language is limited. The text below may have mistakes or missing words. Please read it carefully and correct it before sending."
   },
   "chat": {
     "thinking": "Reading your message...",
@@ -91,6 +92,7 @@
     "placeholder": "Type your message here...", "send": "Send", "voice": "Use voice",
     "scriptHintHi": "It looks like you are typing Hindi in English letters. For the most accurate result, please type in Devanagari (हिंदी) or tap the microphone and speak. If you are writing in English, switch the language to English.",
     "scriptHintUr": "It looks like you are typing Urdu in English letters. For the most accurate result, please type in Urdu script (اردو) or tap the microphone and speak. If you are writing in English, switch the language to English.",
+    "scriptHintDoi": "It looks like you are typing Dogri in English letters. For the most accurate result, please type in Devanagari (डोगरी) or tap the microphone and speak. If you are writing in English, switch the language to English.",
     "scriptHintVoice": "Use voice instead",
     "footer": "Medical staff review information before care decisions.",
     "endTitle": "End this conversation?",
@@ -213,6 +215,11 @@
     "silent": "We could not hear any speech. Please try again closer to the microphone.",
     "tooShort": "The recording is too short.", "tooLong": "The recording is too long. Please keep it under 2 minutes.",
     "noSpeech": "No words were recognised. Please try again.", "sessionExpired": "Please log in again.",
-    "notAllowed": "You do not have permission to do that.", "generic": "Something went wrong. Please try again."
+    "notAllowed": "You do not have permission to do that.", "generic": "Something went wrong. Please try again.",
+    "conversationClosed": "This conversation has already been sent. Please start a new one.",
+    "conversationTooLong": "This conversation is too long. Please send it and start a new one.",
+    "nothingToSubmit": "Please describe your concern before sending.",
+    "badTranscription": "That voice recording cannot be used for this message. Please record again.",
+    "emptyMessage": "Please write a message first."
   }
 }

@@ -46,7 +46,7 @@ try {
   await t("btn('Sign up')");
   await page.waitFor("window.__t.has('Create your account')");
   const langOptions = await page.eval("[...document.querySelector('form.signup select').options].map(o=>o.text).join(',')");
-  check("sign-up language list is English/Hindi/Urdu", langOptions === "English,Hindi,Urdu", langOptions);
+  check("sign-up language list is English/Hindi/Urdu/Dogri", langOptions === "English,Hindi,Urdu,Dogri — डोगरी", langOptions);
   await page.eval("window.__t.set(document.querySelector('form.signup select'), 'Urdu')");
   await t(`set(window.__t.byPh('e.g. Ankit'), ${JSON.stringify(name)})`);
   await t(`set(window.__t.byPh('+91 Enter your mobile'), '${mobile}')`);

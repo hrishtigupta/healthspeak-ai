@@ -2,6 +2,7 @@
 // The key is kept on this device only and sent with a heartbeat every minute so
 // administrators can see the kiosk is running. No patient data is sent.
 import { api } from "./api.js";
+import { isSupportedLanguage } from "../i18n/languages.js";
 
 const KEY = "healthspeak.kioskKey";
 const IDLE_KEY = "healthspeak.kioskIdleSeconds";
@@ -48,7 +49,7 @@ export async function sendHeartbeat(key, uiLanguage) {
     headers: { "X-Kiosk-Key": key },
     body: {
       app_version: "0.8.0",
-      ui_language: ["en", "hi", "ur"].includes(uiLanguage) ? uiLanguage : null,
+      ui_language: isSupportedLanguage(uiLanguage) ? uiLanguage : null,
       microphone: await microphoneState(),
       online: navigator.onLine !== false,
     },

@@ -487,6 +487,21 @@ A routing rule now also fires when the extractor found the same symptom in other
 been hurting" matches the rule "stomach pain"), once per department and symptom. The Hindi/Urdu wording
 is DRAFT and needs review by native speakers and clinicians.
 
+## Dogri (`doi`, Devanagari)
+
+Dogri is a patient language next to English, Hindi and Urdu. It goes through the SAME dialogue engine
+(no separate Dogri bot). What is verified and what is not:
+
+| Part | Status |
+|---|---|
+| Language value | ISO 639-3 `doi`. Accepted by the chat, voice, profile, registration and kiosk APIs and stored in all six language columns. Migration `0012` replaces their CHECK constraints (adds `doi`; no row is read or changed; downgrade is refused while any `doi` row exists). Apply with `python -m alembic upgrade head`. |
+| Translation (Dogri -> English) | **Supported.** The installed IndicTrans2 `indic-en` model has `doi_Deva` in its vocabulary, and a real run translated test sentences correctly, including negation, durations and red-flag phrases (`HEALTHSPEAK_AI_TESTS=1`). Only a small set of sentences written for this project has been checked, not a clinical corpus. The original text is never overwritten; the English text is a separate, labelled machine translation. |
+| Speech to text | **NOT supported by Whisper.** Whisper's tokenizer has no Dogri language token (checked). Dogri audio is decoded with the Hindi setting, closest Devanagari language it knows, and the API returns a `limitation` message that the app shows next to the transcript. The patient must check and correct it; the raw transcript is kept separately. No genuine Dogri recordings were available, so Dogri speech accuracy is **untested**. A purpose-built model (for example AI4Bharat IndicConformer, which lists Dogri) would be the proper fix; it was not installed (large download, licence and hardware review needed). |
+| Chat wording | DRAFT Dogri templates, symptom and department names in `app/ai/dialogue_text.py`. Needs a fluent Dogri speaker and a clinician. |
+| Symptom understanding | Translation first, then a Dogri glossary (`DOGRI_GLOSSARY`, Dogri postposition `च`, negation `नेईं`, `थमां` durations, `सज्जा`/`खब्बा` sides) as a safety net, so a missed word in translation does not hide a symptom. Extend the glossary with a fluent speaker; it is not a complete dictionary. |
+| Romanised Dogri | Not converted. A hint asks the patient to type Devanagari or speak. Spellings are never changed automatically. |
+| Consent text | No reviewed Dogri legal text exists, so Dogri readers are shown the Hindi consent text (marked draft). |
+
 ## Tests
 
 `pytest` uses a separate database named `healthspeak_test` (created

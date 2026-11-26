@@ -85,11 +85,12 @@ import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
 import { kioskIdleSeconds, kioskKey, sendHeartbeat } from "./services/kiosk.js";
 // The greeting is shown in the reader's display language (it is not stored).
 const GREETING = { by: "doctor", key: "chat.greeting" };
-const NAME_BY_CODE = { en: "English", hi: "Hindi", ur: "Urdu" };
+import { LANGUAGE_BY_CODE, NAME_BY_CODE, assistantLng } from "./i18n/languages.js";
 // Server messages -> the chat bubble format the UI already uses.
 const toChat = (m) => ({
   by: m.sender === "patient" ? "patient" : "doctor",
   text: m.content,
+  lang: m.language, // the language this message was written in (the assistant answers in the same one)
   meta: m.sender === "patient" ? null : m.meta || null,
 });
 const ROLE_LABELS = {
@@ -131,6 +132,7 @@ export default function App() {
     [reviewIntake, ReviewIntake] = useState(null), // intake open in the review screen
     [transcribing, Transcribing] = useState(false), // server is transcribing a recording
     [transcriptionId, TranscriptionId] = useState(null), // transcription shown in the voice box
+    [asrLimited, AsrLimited] = useState(false), // speech model only partly supports this language
     [departments, Departments] = useState([]); // active departments (staff confirmation)
   const notify = (x) => {
     T(x);
@@ -198,6 +200,7 @@ export default function App() {
         const t = await transcribeAudio(cid, blob, LANGUAGE_CODES[language] || "en");
         V(t.text); // the patient reviews (and may edit) this before sending
         TranscriptionId(t.id);
+        AsrLimited(Boolean(t.limitation)); // e.g. Dogri: Whisper has no Dogri model, say so
       } catch (err) {
         notify(translateError(err));
       } finally {
@@ -294,12 +297,21 @@ export default function App() {
     return false;
   };
   // Save one message in the patient's conversation (creating/resuming it first).
+  const openingRef = useRef(null); // the request in flight, so two callers share ONE conversation
   const ensureConversation = async () => {
     if (convId) return convId;
-    const conv = await openConversation();
-    ConvId(conv.id);
-    Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
-    return conv.id;
+    if (!openingRef.current) {
+      openingRef.current = openConversation()
+        .then((conv) => {
+          ConvId(conv.id);
+          Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
+          return conv.id;
+        })
+        .finally(() => {
+          openingRef.current = null;
+        });
+    }
+    return openingRef.current;
   };
   const postToIntake = async (text, inputMode, tid = null) => {
     const cid = await ensureConversation();
@@ -337,6 +349,7 @@ export default function App() {
       await postToIntake(voice, transcriptionId ? "voice_server" : "text", transcriptionId);
       V("");
       TranscriptionId(null);
+      AsrLimited(false);
       go("chat");
     } catch (err) {
       notify(translateError(err));
@@ -877,6 +890,11 @@ export default function App() {
               aria-label={t("voice.placeholder")}
               dir="auto"
             />
+            {asrLimited && voice && (
+              <p className="asr-note" role="note" data-testid="asr-limited">
+                {t("voice.limited")}
+              </p>
+            )}
             <div className="mic-controls">
               <button onClick={() => Modal("voicehelp")} aria-label={t("voice.help")}>
                 ?
@@ -895,6 +913,7 @@ export default function App() {
                   stopRecorder(true);
                   V("");
                   TranscriptionId(null);
+                  AsrLimited(false);
                 }}
               >
                 <X/>
@@ -950,9 +969,9 @@ export default function App() {
                     {m.by === "patient" ? t("common.you") : "HS"}
                   </div>
                   <div className="bubble">
-                    <p dir="auto">{m.key ? t(m.key) : m.text}</p>
+                    <p dir="auto">{m.key ? t(m.key, { lng: assistantLng(LANGUAGE_CODES[language]) }) : m.text}</p>
                     {m.meta && m.meta.department && ["ready", "urgent"].includes(m.meta.stage) && (
-                      <SuggestionCard meta={m.meta} />
+                      <SuggestionCard meta={m.meta} lng={assistantLng(m.lang || LANGUAGE_CODES[language])} />
                     )}
                   </div>
                 </div>
@@ -960,7 +979,7 @@ export default function App() {
               {sending && (
                 <div className="message doctor" aria-live="polite">
                   <div className="avatar">HS</div>
-                  <div className="bubble"><p className="thinking">{t("chat.thinking")}</p></div>
+                  <div className="bubble"><p className="thinking">{t("chat.thinking", { lng: assistantLng(LANGUAGE_CODES[language]) })}</p></div>
                 </div>
               )}
             </div>
@@ -984,7 +1003,7 @@ export default function App() {
               </div>
               {isRomanizedIndic(message, LANGUAGE_CODES[language]) && (
                 <div className="script-hint" role="status" data-testid="script-hint">
-                  <span>{t(LANGUAGE_CODES[language] === "ur" ? "chat.scriptHintUr" : "chat.scriptHintHi")}</span>
+                  <span>{t(LANGUAGE_BY_CODE[LANGUAGE_CODES[language]].hintKey)}</span>
                   <button type="button" onClick={() => go("voice")}>
                     {t("chat.scriptHintVoice")}
                   </button>
@@ -1157,7 +1176,7 @@ export default function App() {
           </ol>
           {(() => {
             const last = [...messages].reverse().find((m) => m.meta && m.meta.department);
-            return last ? <SuggestionCard meta={last.meta} /> : null;
+            return last ? <SuggestionCard meta={last.meta} lng={assistantLng(last.lang)} /> : null;
           })()}
           <div className="actions">
             <Btn kind="outline" onClick={() => Modal("")}>

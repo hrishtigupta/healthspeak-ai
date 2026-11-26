@@ -2,7 +2,7 @@
 import { api, tokenStore } from "./api.js";
 
 // The existing UI uses language/gender labels; the API uses short codes.
-export const LANGUAGE_CODES = { English: "en", Hindi: "hi", Urdu: "ur" };
+export { LANGUAGE_CODES } from "../i18n/languages.js";
 export const GENDER_CODES = {
   Female: "female",
   Male: "male",

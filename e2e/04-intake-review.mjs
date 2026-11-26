@@ -37,7 +37,7 @@ try {
   await t("btn('Voice Input')");
   await page.waitFor("document.querySelector('.voice-screen textarea')");
   const voiceLangs = await page.eval("[...document.querySelector('.voice-bottom select').options].map(o=>o.text).join(',')");
-  check("voice language list is English/Hindi/Urdu", voiceLangs === "English,Hindi,Urdu", voiceLangs);
+  check("voice language list is English/Hindi/Urdu/Dogri", voiceLangs === "English,Hindi,Urdu,Dogri — डोगरी", voiceLangs);
   await t("set('.voice-screen textarea', 'anonymous words')");
   await t("btn('Continue to chat')");
   await page.waitFor("window.__t.has('Welcome Back')");

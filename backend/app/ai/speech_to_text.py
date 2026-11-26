@@ -18,6 +18,18 @@ WHISPER_LANGUAGE = {
     ContentLanguage.EN: "english",
     ContentLanguage.HI: "hindi",
     ContentLanguage.UR: "urdu",
+    # Whisper has NO Dogri language token (checked against its tokenizer's language list). Dogri is
+    # decoded with the Hindi token, the closest Devanagari language it knows, and this is never hidden:
+    # see ASR_LIMITATION below, which the API returns and the app shows next to the transcript.
+    ContentLanguage.DOI: "hindi",
+}
+
+ASR_LIMITATION = {
+    ContentLanguage.DOI: (
+        "Dogri is not one of the languages the speech model was trained for, so this transcript was "
+        "produced with its Hindi setting and may contain mistakes, Hindi words in place of Dogri "
+        "words, or missing words. Please read it carefully and correct it before sending."
+    ),
 }
 
 

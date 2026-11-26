@@ -17,6 +17,7 @@ from app.ai import text_processing
 from app.ai.dialogue_text import (
     CLAUSE_BREAKS,
     DEPARTMENT_NAMES,
+    DOGRI_GLOSSARY,
     NATIVE_GLOSSARY,
     NEGATION_AFTER,
     NEGATION_BEFORE,
@@ -50,21 +51,29 @@ _NUM_WORDS = {
     "hi": {"एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5, "पाँच": 5, "छह": 6, "छः": 6, "सात": 7,
            "आठ": 8, "नौ": 9, "दस": 10},
     "ur": {"ایک": 1, "دو": 2, "تین": 3, "چار": 4, "پانچ": 5, "چھ": 6, "سات": 7, "آٹھ": 8, "نو": 9, "دس": 10},
+    # Dogri numerals (DRAFT): इक्क, दो, त्रै, चार, पंज, छे, सत्त, अट्ठ, नौं, दस
+    "doi": {"इक्क": 1, "एक": 1, "दो": 2, "त्रै": 3, "तीन": 3, "चार": 4, "पंज": 5, "पांच": 5, "छे": 6,
+            "सत्त": 7, "सात": 7, "अट्ठ": 8, "आठ": 8, "नौं": 9, "नौ": 9, "दस": 10},
 }
 _UNITS = {
     "hi": {"दिन": "days", "हफ्ते": "weeks", "हफ़्ते": "weeks", "सप्ताह": "weeks", "घंटे": "hours",
            "महीने": "months"},
     "ur": {"دن": "days", "ہفتے": "weeks", "گھنٹے": "hours", "مہینے": "months"},
+    "doi": {"दिनें": "days", "दिन": "days", "हफ्तें": "weeks", "हफ्ते": "weeks", "हफ्ता": "weeks",
+            "घैंटे": "hours", "घंटे": "hours", "म्हीनें": "months", "म्हीने": "months", "महीने": "months"},
 }
-_SINCE_YESTERDAY = {"hi": "कल से", "ur": "کل سے"}
+_SINCE_YESTERDAY = {"hi": ["कल से"], "ur": ["کل سے"],
+                    "doi": ["कल्ल थमां", "कल्लै थमां", "कल्ल थम", "कल्लै थम", "कल्ल दा", "कल्लै दा", "कल थमां", "कल से"]}
+_SINCE_MARK = {"hi": "से", "ur": "سے", "doi": "थमां|शा|से|थम"}
 
 
 def _duration_phrase(t: str, lang: str) -> str | None:
-    if _SINCE_YESTERDAY[lang] in t:
+    if any(p in t for p in _SINCE_YESTERDAY[lang]):
         return "since yesterday"
     nums = "|".join(["[0-9]+", *map(re.escape, _NUM_WORDS[lang])])
-    units = "|".join(map(re.escape, _UNITS[lang]))
-    m = re.search(rf"({nums})\s*({units})\s*(?:से|سے)", t)
+    # longest unit first so "दिनें" is not cut short to "दिन"
+    units = "|".join(map(re.escape, sorted(_UNITS[lang], key=len, reverse=True)))
+    m = re.search(rf"({nums})\s*({units})\s*(?:{_SINCE_MARK[lang]})", t)
     if not m:
         return None
     n = int(m.group(1)) if m.group(1).isdigit() else _NUM_WORDS[lang][m.group(1)]
@@ -88,12 +97,14 @@ def native_gloss(text: str, lang: str) -> tuple[str, list[GlossHit]]:
 
     Used only as input to the English extractor and classifier. It is NOT shown as a translation.
     """
-    if lang not in ("hi", "ur"):
+    if lang not in ("hi", "ur", "doi"):
         return "", []
     t = _norm_native(text)
     found: list[tuple[int, int, str]] = []
     for term, (_en, hi, ur) in NATIVE_GLOSSARY.items():
-        for phrase in (hi if lang == "hi" else ur):
+        # Dogri is written in Devanagari and shares many Hindi words: Hindi phrases plus its own.
+        phrases = ur if lang == "ur" else hi + (DOGRI_GLOSSARY.get(term, []) if lang == "doi" else [])
+        for phrase in phrases:
             p, i = _norm_native(phrase), 0
             while (i := t.find(p, i)) != -1:
                 found.append((i, i + len(p), term))
@@ -280,7 +291,9 @@ def plan_turn(*, lang: str, combined_en: str, details: dict, asked: list[str], s
                 why_terms.append(term)
         dept_meta = {
             "status": suggestion["status"], "strength": strength, "code": suggestion["department_code"],
-            "name": suggestion["department_name"], "why": why_terms,
+            "name": suggestion["department_name"],
+            "name_local": _dept_name(suggestion["department_code"], suggestion["department_name"], lang),
+            "why": why_terms,
             "alternatives": [{"name": c["name"], "score": c["score"]} for c in cands[:3]],
             "note": "Preliminary. Not a probability. Staff confirm the department.",
         }

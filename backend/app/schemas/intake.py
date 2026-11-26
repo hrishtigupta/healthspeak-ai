@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.core.enums import (
     ContentLanguage,
@@ -62,6 +62,15 @@ class TranscriptionOut(BaseModel):
     duration_seconds: float | None
     model_id: str | None
     processing_ms: int | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def limitation(self) -> str | None:
+        """Honest warning shown beside the transcript when the speech model does not really
+        support the spoken language (currently Dogri)."""
+        from app.ai.speech_to_text import ASR_LIMITATION
+
+        return ASR_LIMITATION.get(ContentLanguage(self.language))
 
 
 class MessageOut(BaseModel):

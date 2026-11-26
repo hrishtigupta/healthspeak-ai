@@ -64,6 +64,11 @@ ACKNOWLEDGEMENTS = {
         "धन्यवाद। आपका संदेश चिकित्सा कर्मचारियों की समीक्षा के लिए आपकी इनटेक जानकारी में "
         "जोड़ दिया गया है। आप और जानकारी जोड़ सकते हैं, या पूरा होने पर चैट समाप्त कर सकते हैं।"
     ),
+    # DRAFT Dogri wording (Devanagari): needs review by a fluent Dogri speaker.
+    ContentLanguage.DOI: (
+        "धन्नवाद। तुंदा संदेश मेडिकल स्टाफ दी समीक्षा आस्तै तुंदी इनटेक जानकारी च जोड़ोई गेआ ऐ। "
+        "तुस होर जानकारी जोड़ी सकदे ओ, जां पूरा होने पर चैट खत्म करी सकदे ओ।"
+    ),
     ContentLanguage.UR: (
         "شکریہ۔ آپ کا پیغام طبی عملے کے جائزے کے لیے آپ کی انٹیک معلومات میں شامل کر دیا گیا "
         "ہے۔ آپ مزید تفصیلات شامل کر سکتے ہیں، یا مکمل ہونے پر چیٹ ختم کر سکتے ہیں۔"
@@ -113,9 +118,14 @@ def open_conversation(db: Session, patient: Patient, user: User) -> tuple[Conver
     """Return the patient's open conversation, creating one if needed. (conv, created)."""
     if not patient_service.has_valid_consent(patient):
         raise ConsentMissing
+    # Two requests can arrive together (e.g. the chat page opening twice). Lock this patient's row so the
+    # second request waits and then finds the conversation the first one created, instead of creating
+    # a second open conversation that would split the chat in two.
+    db.execute(select(Patient.id).where(Patient.id == patient.id).with_for_update())
     existing = db.scalar(
         select(Conversation).where(Conversation.patient_id == patient.id,
                                    Conversation.status == ConversationStatus.OPEN.value)
+        .order_by(Conversation.created_at).limit(1)
     )
     if existing:
         return existing, False

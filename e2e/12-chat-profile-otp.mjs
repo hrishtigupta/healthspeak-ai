@@ -137,7 +137,7 @@ try {
   const staffTok = await page.eval(`fetch('${API}/auth/login', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({identifier:'staff@example.com', password:${JSON.stringify(SEED_PW)}})}).then(r => r.json()).then(j => j.access_token)`);
   const staffGet = (path) => page.eval(`fetch('${API}${path}', {headers:{Authorization:'Bearer ${staffTok}'}}).then(r => r.json())`);
-  const list = await staffGet("/intakes?review_status=pending_review");
+  const list = await staffGet("/intakes?review_status=pending_review&limit=200");
   const mine = list.items.find((i) => i.patient_name.includes(stamp));
   const detail = await staffGet(`/intakes/${mine.id}`);
   check("staff see the original messages in order",

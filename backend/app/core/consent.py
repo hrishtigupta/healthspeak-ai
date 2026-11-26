@@ -55,5 +55,10 @@ _TEXTS: dict[ConsentType, dict[UiLanguage, tuple[str, str]]] = {
 
 
 def consent_text(consent_type: ConsentType, language: UiLanguage) -> tuple[str, str]:
-    """(title, body) for the current version in the requested language."""
-    return _TEXTS[consent_type][language]
+    """(title, body) for the current version in the requested language.
+
+    There is no reviewed Dogri consent wording yet. A legal consent text must not be machine-written, so
+    Dogri readers (who read Devanagari) are shown the Hindi text until a reviewed Dogri version exists.
+    """
+    texts = _TEXTS[consent_type]
+    return texts.get(language) or texts[UiLanguage.HI if language == UiLanguage.DOI else UiLanguage.EN]
