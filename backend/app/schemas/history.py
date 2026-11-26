@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.core.enums import ContentLanguage, ReviewStatus, SymptomMatchType, SymptomReviewStatus, SymptomStatus
 
@@ -37,6 +37,15 @@ class SymptomOut(BaseModel):
     reviewed_at: datetime | None
     effective_term: str
     effective_status: SymptomStatus
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def evidence(self) -> dict:
+        """How this symptom was found: exact / possible / staff / rejected (no invented percentages)."""
+        from app.services.evidence import symptom_evidence
+
+        return symptom_evidence(match_type=self.match_type.value, review_status=self.review_status.value,
+                                status=self.status.value, term=self.term, effective_term=self.effective_term)
 
 
 class SymptomReview(BaseModel):

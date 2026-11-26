@@ -74,7 +74,14 @@ import {
 import { Btn, Brand, Field, Info, Stat, ModalBox, initials, pad2 } from "./components/ui.jsx";
 import { isRomanizedIndic } from "./utils/script.js";
 import QueuePanel from "./pages/staff/QueuePanel.jsx";
-import { HistoryPanel, StatusChip, SymptomsPanel } from "./pages/staff/IntakeInsights.jsx";
+import {
+  FieldEvidencePanel,
+  HistoryPanel,
+  PriorityChip,
+  PriorityPanel,
+  StatusChip,
+  SymptomsPanel,
+} from "./pages/staff/IntakeInsights.jsx";
 import VisitWorkspace from "./pages/staff/VisitWorkspace.jsx";
 import DoctorHome from "./pages/doctor/DoctorHome.jsx";
 import AdminHome from "./pages/admin/AdminHome.jsx";
@@ -91,6 +98,8 @@ const toChat = (m) => ({
   by: m.sender === "patient" ? "patient" : "doctor",
   text: m.content,
   lang: m.language, // the language this message was written in (the assistant answers in the same one)
+  // greetings, off-topic and unsafe messages stay in the chat but are not part of the intake
+  skip: m.sender === "patient" && Boolean(m.meta && m.meta.skip_intake),
   meta: m.sender === "patient" ? null : m.meta || null,
 });
 const ROLE_LABELS = {
@@ -133,6 +142,8 @@ export default function App() {
     [transcribing, Transcribing] = useState(false), // server is transcribing a recording
     [transcriptionId, TranscriptionId] = useState(null), // transcription shown in the voice box
     [asrLimited, AsrLimited] = useState(false), // speech model only partly supports this language
+    [asrRaw, AsrRaw] = useState(""), // Dogri: the raw transcript, when a suggested spelling is shown instead
+    [asrSuggested, AsrSuggested] = useState(""), // Dogri: the suggested spelling (a display aid only)
     [departments, Departments] = useState([]); // active departments (staff confirmation)
   const notify = (x) => {
     T(x);
@@ -198,7 +209,11 @@ export default function App() {
         const cid = await ensureConversation();
         const blob = new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
         const t = await transcribeAudio(cid, blob, LANGUAGE_CODES[language] || "en");
-        V(t.text); // the patient reviews (and may edit) this before sending
+        // Dogri: show the suggested spelling, keep the raw transcript one click away. Either way the
+        // patient reviews and may edit it, and only what they send is used.
+        V(t.suggested_text || t.text);
+        AsrRaw(t.suggested_text ? t.text : "");
+        AsrSuggested(t.suggested_text || "");
         TranscriptionId(t.id);
         AsrLimited(Boolean(t.limitation)); // e.g. Dogri: Whisper has no Dogri model, say so
       } catch (err) {
@@ -350,6 +365,8 @@ export default function App() {
       V("");
       TranscriptionId(null);
       AsrLimited(false);
+      AsrRaw("");
+      AsrSuggested("");
       go("chat");
     } catch (err) {
       notify(translateError(err));
@@ -895,6 +912,19 @@ export default function App() {
                 {t("voice.limited")}
               </p>
             )}
+            {asrRaw && voice && (
+              <div className="asr-note suggested" role="note" data-testid="asr-suggested">
+                <p>{t("voice.suggestedNote")}</p>
+                <div className="actions">
+                  <button type="button" className="link" onClick={() => V(asrRaw)}>
+                    {t("voice.showOriginal")}
+                  </button>
+                  <button type="button" className="link" onClick={() => V(asrSuggested)}>
+                    {t("voice.useSuggested")}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="mic-controls">
               <button onClick={() => Modal("voicehelp")} aria-label={t("voice.help")}>
                 ?
@@ -914,6 +944,8 @@ export default function App() {
                   V("");
                   TranscriptionId(null);
                   AsrLimited(false);
+                  AsrRaw("");
+                  AsrSuggested("");
                 }}
               >
                 <X/>
@@ -1023,7 +1055,7 @@ export default function App() {
                 </button>
               </div>
               <div className="review-line">
-                <Btn kind="outline" onClick={() => Modal("endchat")} disabled={sending || messages.length < 2}>
+                <Btn kind="outline" onClick={() => Modal("endchat")} disabled={sending || !messages.some((m) => m.by === "patient" && !m.skip)}>
                   <ClipboardList /> {t("chat.reviewSend")}
                 </Btn>
               </div>
@@ -1112,6 +1144,7 @@ export default function App() {
           onSave={saveReview}
           onRetryTranslation={retryReviewTranslation}
           onReanalyse={reanalyse}
+          onIntakeChanged={ReviewIntake}
           departments={departments}
           notify={notify}
         />
@@ -1170,7 +1203,7 @@ export default function App() {
         <ModalBox title={t("chat.reviewTitle")} close={() => Modal("")}>
           <p>{t("chat.reviewText")}</p>
           <ol className="review-list">
-            {messages.filter((m) => m.by === "patient").map((m, i) => (
+            {messages.filter((m) => m.by === "patient" && !m.skip).map((m, i) => (
               <li key={i} dir="auto">{m.text}</li>
             ))}
           </ol>
@@ -1480,6 +1513,7 @@ function Staff({
                   <span>{t(`lang.${i.original_language}`)}</span>
                   <span dir="auto">{i.snippet}</span>
                   <span>
+                    <PriorityChip priority={i.priority} source={i.priority_source} />
                     <span className="status wait">{t("staff.unreviewed")}</span>
                     {i.needs_attention && (
                       <span className="status attention" title="Mentions words marked for prompt staff attention">
@@ -1520,6 +1554,7 @@ function IntakeReview({
   onSave,
   onRetryTranslation,
   onReanalyse,
+  onIntakeChanged,
   departments,
   notify,
 }) {
@@ -1574,6 +1609,7 @@ function IntakeReview({
                 {confirmed ? "Confirmed by staff" : "Unreviewed"}
               </span>
             </div>
+            <PriorityPanel intake={intake} notify={notify} onChanged={onIntakeChanged} />
             <HistoryPanel intakeId={intake.id} />
             <div className="workspace-section">
               <span className="eyebrow">
@@ -1668,6 +1704,7 @@ function IntakeReview({
               )}
             </div>
             <AnalysisPanel analysis={a} busy={busy} onReanalyse={onReanalyse} hasFinal={Boolean(intake.final_text)} />
+            <FieldEvidencePanel fields={intake.field_evidence} />
             <SymptomsPanel key={a ? a.id : "none"} intake={intake} notify={notify} />
           </section>
           <aside>

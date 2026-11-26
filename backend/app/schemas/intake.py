@@ -10,7 +10,9 @@ from app.core.enums import (
     ConversationStatus,
     Gender,
     InputMode,
+    IntakePriority,
     MessageSender,
+    PrioritySource,
     ReviewStatus,
     TranscriptionStatus,
     TranslationStatus,
@@ -71,6 +73,30 @@ class TranscriptionOut(BaseModel):
         from app.ai.speech_to_text import ASR_LIMITATION
 
         return ASR_LIMITATION.get(ContentLanguage(self.language))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def suggested_text(self) -> str | None:
+        """Dogri only: the raw transcript with a few Hindi function words respelled the Dogri way.
+
+        A display aid, NOT speech recognition. `text` (the raw transcript) is unchanged and stays the
+        stored record; this value is never saved by itself: only what the patient approves is.
+        """
+        if self.language != ContentLanguage.DOI or not self.text:
+            return None
+        from app.ai.dogri_normalize import suggest
+
+        s = suggest(self.text)
+        return s.text if s.changed else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def suggestion_changes(self) -> list[dict]:
+        if self.language != ContentLanguage.DOI or not self.text:
+            return []
+        from app.ai.dogri_normalize import suggest
+
+        return suggest(self.text).changes
 
 
 class MessageOut(BaseModel):
@@ -137,6 +163,8 @@ class IntakeListItem(BaseModel):
     created_at: datetime
     suggested_department: str | None = None
     needs_attention: bool = False
+    priority: IntakePriority = IntakePriority.NORMAL
+    priority_source: PrioritySource = PrioritySource.SYSTEM
 
 
 class AnalysisOut(BaseModel):
@@ -192,6 +220,14 @@ class IntakeStaffView(BaseModel):
     confirmed_department: DepartmentRef | None
     # Symptoms of the latest analysis with staff decisions (empty for analyses made before they existed).
     symptoms: list[SymptomOut] = []
+    # Urgent / Normal flag: set by the emergency rules (never lowered by them), changeable by staff with a reason.
+    priority: IntakePriority = IntakePriority.NORMAL
+    priority_source: PrioritySource = PrioritySource.SYSTEM
+    priority_reason: str | None = None
+    priority_changed_at: datetime | None = None
+    priority_changed_by_user_id: uuid.UUID | None = None
+    # Per-field evidence (exact / possible / staff / not found), see app/services/evidence.py
+    field_evidence: list[dict] = []
 
 
 class IntakePatientView(BaseModel):
@@ -219,6 +255,22 @@ class IntakeCorrection(BaseModel):
     @classmethod
     def check_text(cls, v: str) -> str:
         return _not_blank(v)
+
+
+class PriorityChange(BaseModel):
+    """A staff member sets the Urgent / Normal flag. The reason is required and kept."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    priority: IntakePriority
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_not_blank(cls, v: str) -> str:
+        if len(v.strip()) < 3:
+            raise ValueError("Please give a short reason.")
+        return v.strip()
 
 
 class IntakeConfirm(BaseModel):

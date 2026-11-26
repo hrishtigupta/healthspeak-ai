@@ -502,6 +502,30 @@ Dogri is a patient language next to English, Hindi and Urdu. It goes through the
 | Romanised Dogri | Not converted. A hint asks the patient to type Devanagari or speak. Spellings are never changed automatically. |
 | Consent text | No reviewed Dogri legal text exists, so Dogri readers are shown the Hindi consent text (marked draft). |
 
+## Input guard, saved priority, field evidence, Dogri transcript suggestion
+
+- **Input guard** (`app/ai/intent_guard.py`, used by `dialogue_service`): deterministic, no model. Unsafe
+  requests (weapons/explosives/harming someone) get a brief refusal with no instructions; clearly unrelated
+  questions (weather, jokes, sport, trivia) get a polite redirect (shorter on repeats); appointment/department/
+  app-help questions get a short honest help text; greetings are welcomed. A message with ANY symptom or health
+  word is never guarded, and emergencies always win. Guarded messages stay in the chat log but are flagged
+  `skip_intake`, so they never become intake text, symptoms or a record (a chat with only off-topic messages
+  cannot be submitted). Wording is in `dialogue_text.py` for en/hi/ur/doi (Urdu and Dogri are DRAFT).
+  Limit: it recognises listed patterns only; unusual off-topic wording is treated as health (the safe default).
+  It does not detect self-harm statements (the existing emergency rules do not either).
+- **Priority** (`intake_records.priority`, migration `0013`): Urgent when the existing emergency rules fired
+  (`app/ai/urgency.py`: red-flag symptoms or hospital attention rules), otherwise Normal. The system can only
+  raise it; only staff can change it (`PATCH /api/intakes/{id}/priority`, reason required, kept as a revision and
+  an audit event). The staff queue lists urgent first.
+- **Field evidence** (`app/services/evidence.py`): no percentages. Each symptom/field is labelled Exact match,
+  Possible match (spelling variant), Added or corrected by staff, or Not found, from metadata that was already
+  stored (no migration). Staff additions/corrections are never shown as AI extraction.
+- **Dogri transcript suggestion** (`app/ai/dogri_normalize.py`): a conservative respelling of a few Hindi
+  function words (`में→च`, `है→ऐ`, `नहीं→नेईं`, `मुझे→मिगी`, `से→थमां` after time words, ...) in the Hindi-setting
+  transcript. It is a display aid, not speech recognition: the raw transcript is stored unchanged, the app labels
+  the text "suggested, not verified", the patient can switch back to the original and edit, and only what they
+  send is used. Unknown words are left alone.
+
 ## Tests
 
 `pytest` uses a separate database named `healthspeak_test` (created

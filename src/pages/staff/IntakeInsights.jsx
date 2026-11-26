@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import { Btn } from "../../components/ui.jsx";
-import { addSymptom, getIntakeHistory, reviewSymptom } from "../../services/intake.js";
+import { addSymptom, getIntakeHistory, reviewSymptom, setIntakePriority } from "../../services/intake.js";
 
 export const SYMPTOM_STATUS = {
   current: { label: "Current", tone: "blue" },
@@ -40,6 +40,139 @@ const detailText = (attrs) => {
   }
   return out;
 };
+
+// ---------- priority (Urgent / Normal) ----------
+
+export function PriorityChip({ priority, source }) {
+  const urgent = priority === "urgent";
+  return (
+    <span
+      className={"status priority " + (urgent ? "urgent" : "normal")}
+      data-testid="priority-chip"
+      title={source === "staff" ? "Set by a staff member" : "Set by the emergency rules"}
+    >
+      {urgent ? "Urgent" : "Normal"}
+    </span>
+  );
+}
+
+// Review screen: the saved priority, why, and a staff-only way to change it (a reason is required).
+export function PriorityPanel({ intake, notify, onChanged }) {
+  const [open, SetOpen] = useState(false);
+  const [value, SetValue] = useState(intake.priority === "urgent" ? "normal" : "urgent");
+  const [reason, SetReason] = useState("");
+  const [busy, SetBusy] = useState(false);
+  const urgent = intake.priority === "urgent";
+  const save = async () => {
+    SetBusy(true);
+    try {
+      onChanged(await setIntakePriority(intake.id, value, reason.trim()));
+      SetOpen(false);
+      SetReason("");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      SetBusy(false);
+    }
+  };
+  return (
+    <div className={"workspace-section priority-panel" + (urgent ? " urgent" : "")} data-testid="priority-panel">
+      <span className="eyebrow">PRIORITY</span>
+      <div className="symptom-head">
+        <PriorityChip priority={intake.priority} source={intake.priority_source} />
+        <small>
+          {intake.priority_source === "staff"
+            ? "Set by staff"
+            : urgent
+              ? "Set by the emergency rules (an emergency symptom or attention rule was found)"
+              : "No emergency symptom was found by the rules"}
+        </small>
+      </div>
+      {intake.priority_reason && <small>Reason: {intake.priority_reason}</small>}
+      {urgent && intake.priority_source !== "staff" && (
+        <small>The system only ever raises this flag. Only a staff member can lower it, with a reason.</small>
+      )}
+      {intake.review_status !== "confirmed" && !open && (
+        <div className="actions">
+          <Btn kind="outline" onClick={() => SetOpen(true)}>
+            Change priority
+          </Btn>
+        </div>
+      )}
+      {open && (
+        <div className="actions">
+          <select value={value} onChange={(e) => SetValue(e.target.value)} aria-label="New priority">
+            <option value="urgent">Urgent</option>
+            <option value="normal">Normal</option>
+          </select>
+          <input
+            className="reason"
+            value={reason}
+            maxLength={500}
+            placeholder="Reason for the change (required)"
+            aria-label="Reason for the priority change"
+            onChange={(e) => SetReason(e.target.value)}
+          />
+          <Btn disabled={busy || reason.trim().length < 3 || value === intake.priority} onClick={save}>
+            Save priority
+          </Btn>
+          <Btn kind="outline" onClick={() => SetOpen(false)}>
+            Cancel
+          </Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- evidence ("confidence") ----------
+
+const EVIDENCE_TONE = { exact: "done", possible: "wait", staff: "blue", missing: "empty", rejected: "empty" };
+
+export function EvidenceChip({ evidence }) {
+  if (!evidence) return null;
+  return (
+    <span
+      className={"status evidence " + EVIDENCE_TONE[evidence.level]}
+      data-testid="evidence-chip"
+      data-level={evidence.level}
+    >
+      {evidence.label}
+    </span>
+  );
+}
+
+const FIELD_NAME = {
+  symptoms: "Symptoms",
+  duration: "Duration",
+  severity: "Severity",
+  medicines: "Medicines",
+  allergies: "Allergies",
+  department: "Department",
+};
+
+// One row per extracted field: how it was found, so staff can see what needs attention first.
+export function FieldEvidencePanel({ fields }) {
+  if (!fields || !fields.length) return null;
+  return (
+    <div className="workspace-section field-evidence" data-testid="field-evidence">
+      <span className="eyebrow">HOW EACH FIELD WAS FOUND</span>
+      {fields.map((f) => (
+        <div className="field-row" key={f.field} data-field={f.field}>
+          <b>{FIELD_NAME[f.field] || f.field}</b>
+          <span className={"status evidence " + EVIDENCE_TONE[f.level]} data-level={f.level}>
+            {f.label}
+          </span>
+          <small>{f.detail}</small>
+          {f.notes.map((n) => (
+            <small key={n}>{n}</small>
+          ))}
+        </div>
+      ))}
+      <small>These labels show how a field was found. They are not a clinical certainty or a probability.</small>
+    </div>
+  );
+}
 
 export function StatusChip({ value }) {
   const s = SYMPTOM_STATUS[value] || { label: value, tone: "wait" };
@@ -102,8 +235,7 @@ export function SymptomsPanel({ intake, notify }) {
             <div className="symptom-head">
               <b>{s.effective_term}</b>
               <StatusChip value={s.effective_status} />
-              {s.match_type === "fuzzy" && <span className="status wait">spelling variant</span>}
-              {s.match_type === "staff" && <span className="status done">added by staff</span>}
+              <EvidenceChip evidence={s.evidence} />
               <small>{REVIEW_LABEL[s.review_status]}</small>
             </div>
             {s.evidence_text && (
@@ -112,6 +244,9 @@ export function SymptomsPanel({ intake, notify }) {
               </small>
             )}
             {s.effective_term !== s.term && <small>AI read this as: {s.term}</small>}
+            {s.evidence && s.evidence.notes.map((n) => (
+              <small key={n}>{n}</small>
+            ))}
             {s.effective_status !== s.status && <small>AI read the status as: {SYMPTOM_STATUS[s.status]?.label}</small>}
             {detailText(s.attributes).map((d) => (
               <small key={d}>{d}</small>

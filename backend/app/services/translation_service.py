@@ -26,7 +26,9 @@ def translate_intake(db: Session, intake: IntakeRecord, actor: User | None) -> I
     """Translate each non-English patient message and join them in order."""
     if not needs_translation(intake):
         return intake
-    patient_msgs = [m for m in intake.conversation.messages if m.sender == MessageSender.PATIENT.value]
+    # Messages the input guard kept out of the intake (greetings, off-topic, unsafe) are not translated.
+    patient_msgs = [m for m in intake.conversation.messages if m.sender == MessageSender.PATIENT.value
+                    and not (m.meta or {}).get("skip_intake")]
     try:
         engine = translation_slot.get()
         parts, model = [], None

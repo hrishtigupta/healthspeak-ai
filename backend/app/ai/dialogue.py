@@ -13,7 +13,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from app.ai import text_processing
+from app.ai import text_processing, urgency
 from app.ai.dialogue_text import (
     CLAUSE_BREAKS,
     DEPARTMENT_NAMES,
@@ -32,8 +32,8 @@ from app.ai.lexicon import term_for_phrase
 
 DIALOGUE_ENGINE = "dialogue-v1"
 
-# Reported terms that always get emergency guidance instead of more questions.
-RED_FLAG_TERMS = {"chest pain", "breathing difficulty", "fainting"}
+# Emergency rules live in app.ai.urgency (shared with the saved intake priority).
+RED_FLAG_TERMS = urgency.RED_FLAG_TERMS
 PAIN_LIKE = {"stomach pain", "chest pain", "headache", "back pain", "knee pain", "joint pain", "neck pain",
              "ear pain", "toothache", "body pain", "pain (location not stated)", "burning urination"}
 
@@ -267,15 +267,34 @@ def next_slot(ex: text_processing.Extraction, details: dict, asked: list[str], m
     return next((s for s in wanted if s not in asked), None)
 
 
+def guard_turn(*, kind: str, lang: str, emergency_number: str, repeats: int = 0) -> Turn:
+    """Reply to an unsafe, off-topic or service-question message. Never extracts or stores symptoms.
+
+    `repeats`: how many off-topic redirects this conversation already had; after the first one the
+    shorter wording is used so the patient is never scolded over and over.
+    """
+    t = TEMPLATES[lang]
+    if kind == "unsafe":
+        text = t["unsafe"].format(number=emergency_number)
+    elif kind == "service":
+        text = t["service_help"]
+    else:
+        text = t["off_topic"] if repeats == 0 else t["off_topic_short"]
+    return Turn(text, {"engine": DIALOGUE_ENGINE, "stage": "guard", "guard": kind, "asked": None,
+                       "asked_so_far": [], "symptoms": [], "denied": [], "urgent": False, "caution": False,
+                       "department": None, "details": {}})
+
+
 def plan_turn(*, lang: str, combined_en: str, details: dict, asked: list[str], suggestion: dict,
-              patient_turns: int, emergency_number: str, max_questions: int) -> Turn:
+              patient_turns: int, emergency_number: str, max_questions: int,
+              greeting: bool = False) -> Turn:
     """Decide the assistant's next message from the whole conversation so far."""
     t = TEMPLATES[lang]
     ex = text_processing.extract(combined_en)
     terms = [m.term for m in ex.reported]
     uncertain = {m.term for m in ex.reported if m.status == "uncertain"}
     attention = [a for a in suggestion.get("attention", []) if a.get("context") in ("current", "uncertain")]
-    urgent = bool(set(terms) & RED_FLAG_TERMS) or bool(attention)
+    urgent = urgency.is_urgent(terms, attention)
     loc = details.get("location", {})
     caution = ("stomach pain" in terms and "fever" in terms and loc.get("side") == "right"
                and loc.get("region") == "lower")
@@ -335,7 +354,7 @@ def plan_turn(*, lang: str, combined_en: str, details: dict, asked: list[str], s
                "severity": "q_severity", "associated": "q_associated", "medicines": "q_medicines",
                "describe": "q_describe", "describe_retry": "q_describe_retry"}[slot]
         question = t[key].format(symptom=_name(lead, lang) if lead else "")
-        opener = t["empathy"] if patient_turns <= 1 else t["thanks"]
+        opener = t["hello"] if greeting else (t["empathy"] if patient_turns <= 1 else t["thanks"])
         parts = [opener]
         if caution:
             parts.append(t["caution"])
