@@ -38,8 +38,10 @@ export const submitConversation = (conversationId) =>
 export const myIntakes = () => api("/patients/me/intakes");
 
 // ----- staff -----
+// The API returns urgent intakes first, then oldest first. 200 is the API maximum: the default page of 50
+// would hide the newest intakes once more than 50 were waiting.
 export const listIntakes = (reviewStatus) =>
-  api(`/intakes${reviewStatus ? `?review_status=${encodeURIComponent(reviewStatus)}` : ""}`);
+  api(`/intakes?limit=200${reviewStatus ? `&review_status=${encodeURIComponent(reviewStatus)}` : ""}`);
 
 export const getIntake = (id) => api(`/intakes/${id}`);
 
@@ -95,6 +97,10 @@ export const formatDate = (iso) =>
 // only in component state, never in storage or logs.
 export const getIntakeHistory = (id, { limit = 5, offset = 0 } = {}) =>
   api(`/intakes/${id}/history?limit=${limit}&offset=${offset}`);
+
+// Staff set the Urgent / Normal flag. The reason is required and kept in the change history.
+export const setIntakePriority = (intakeId, priority, reason) =>
+  api(`/intakes/${intakeId}/priority`, { method: "PATCH", body: { priority, reason } });
 
 export const reviewSymptom = (intakeId, symptomId, { action, term, status, note }) =>
   api(`/intakes/${intakeId}/symptoms/${symptomId}/review`, {

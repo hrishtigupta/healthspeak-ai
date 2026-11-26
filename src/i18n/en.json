@@ -75,6 +75,9 @@
     "blocked": "Microphone access was blocked. Allow the microphone, or type your concern instead.",
     "speakFirst": "Please speak or enter your health concern first.",
     "waitTranscribe": "Please wait until the recording has been transcribed.",
+    "suggestedNote": "Suggested Dogri spelling: some Hindi words in the text of the recording were respelled the Dogri way. This is a suggestion, not a verified transcript. Please read it and correct anything wrong before continuing.",
+    "showOriginal": "Show original transcript",
+    "useSuggested": "Use suggested spelling",
     "limited": "Speech recognition for this language is limited. The text below may have mistakes or missing words. Please read it carefully and correct it before sending."
   },
   "chat": {

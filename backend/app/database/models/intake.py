@@ -31,7 +31,9 @@ from app.core.enums import (
     ContentLanguage,
     ConversationStatus,
     InputMode,
+    IntakePriority,
     MessageSender,
+    PrioritySource,
     ReviewStatus,
     SymptomMatchType,
     SymptomReviewStatus,
@@ -105,7 +107,10 @@ class IntakeRecord(UuidPk, Timestamps, Base):
         CheckConstraint(f"translation_status IN ({sql_in_list(TranslationStatus)})",
                         name="translation_status_valid"),
         CheckConstraint(f"review_status IN ({sql_in_list(ReviewStatus)})", name="review_status_valid"),
+        CheckConstraint(f"priority IN ({sql_in_list(IntakePriority)})", name="priority_valid"),
+        CheckConstraint(f"priority_source IN ({sql_in_list(PrioritySource)})", name="priority_source_valid"),
         Index("ix_intake_records_review_created", "review_status", "created_at"),
+        Index("ix_intake_records_priority_created", "priority", "created_at"),
     )
 
     patient_id: Mapped[uuid.UUID] = mapped_column(
@@ -114,6 +119,15 @@ class IntakeRecord(UuidPk, Timestamps, Base):
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("conversations.id", ondelete="RESTRICT"), unique=True
     )
+    # Urgent / Normal. The emergency rules may only RAISE it; lowering needs a staff member and a reason.
+    priority: Mapped[str] = mapped_column(
+        String(8), default=IntakePriority.NORMAL.value, server_default=IntakePriority.NORMAL.value)
+    priority_source: Mapped[str] = mapped_column(
+        String(8), default=PrioritySource.SYSTEM.value, server_default=PrioritySource.SYSTEM.value)
+    priority_reason: Mapped[str | None] = mapped_column(Text)
+    priority_changed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"))
+    priority_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     original_language: Mapped[str] = mapped_column(String(8))
     original_text: Mapped[str] = mapped_column(Text)
     english_text: Mapped[str | None] = mapped_column(Text)

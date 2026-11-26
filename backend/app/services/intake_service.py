@@ -15,6 +15,7 @@ from app.core.enums import (
     ContentLanguage,
     ConversationStatus,
     InputMode,
+    IntakePriority,
     MessageSender,
     ReviewStatus,
     TranslationStatus,
@@ -45,8 +46,10 @@ from app.services import (
     audit_service,
     department_service,
     dialogue_service,
+    evidence,
     notification_service,
     patient_service,
+    priority_service,
     queue_service,
     symptom_service,
     translation_service,
@@ -186,7 +189,9 @@ def submit(db: Session, conv: Conversation, user: User) -> IntakeRecord:
     """Turn the conversation's patient messages into an intake awaiting staff review."""
     if conv.status != ConversationStatus.OPEN.value:
         raise ConversationClosed
-    patient_msgs = [m for m in conv.messages if m.sender == MessageSender.PATIENT.value]
+    # Greetings, off-topic and unsafe messages stay in the chat log but never become part of the intake.
+    patient_msgs = [m for m in conv.messages if m.sender == MessageSender.PATIENT.value
+                    and dialogue_service.counts_for_intake(m)]
     if not patient_msgs:
         raise NothingToSubmit
     original_text = "\n".join(m.content for m in patient_msgs)
@@ -204,6 +209,7 @@ def submit(db: Session, conv: Conversation, user: User) -> IntakeRecord:
         review_status=ReviewStatus.PENDING_REVIEW.value,
         submitted_by_user_id=user.id,
     )
+    priority_service.raise_if_urgent(intake, from_chat=priority_service.chat_was_urgent(conv))
     conv.status = ConversationStatus.SUBMITTED.value
     conv.submitted_at = _now()
     db.add(intake)
@@ -240,8 +246,9 @@ def list_for_staff(db: Session, *, review_status: ReviewStatus | None, limit: in
     if review_status:
         stmt = stmt.where(IntakeRecord.review_status == review_status.value)
         count = count.where(IntakeRecord.review_status == review_status.value)
-    # Oldest first: patients who have waited longest are reviewed first.
-    rows = db.execute(stmt.order_by(IntakeRecord.created_at, IntakeRecord.id).limit(limit).offset(offset))
+    # Urgent first, then oldest first (patients who have waited longest are reviewed first).
+    rows = db.execute(stmt.order_by((IntakeRecord.priority == IntakePriority.URGENT.value).desc(),
+                                    IntakeRecord.created_at, IntakeRecord.id).limit(limit).offset(offset))
     items = []
     for i, name in rows:
         a = analysis_service.latest(i)
@@ -253,6 +260,7 @@ def list_for_staff(db: Session, *, review_status: ReviewStatus | None, limit: in
             created_at=i.created_at,
             suggested_department=(a.suggestion.get("department_name") if a else None),
             needs_attention=bool(a and a.needs_attention),
+            priority=i.priority, priority_source=i.priority_source,
         ))
     return IntakeList(items=items, total=db.scalar(count) or 0)
 
@@ -262,6 +270,7 @@ def staff_view(db: Session, intake: IntakeRecord, staff: User) -> IntakeStaffVie
                          target_id=intake.id)
     db.commit()
     p = intake.patient
+    symptom_rows = symptom_service.for_intake(db, intake.id)
     return IntakeStaffView(
         id=intake.id,
         patient=IntakePatientSummary(id=p.id, full_name=p.full_name,
@@ -278,7 +287,13 @@ def staff_view(db: Session, intake: IntakeRecord, staff: User) -> IntakeStaffVie
         analysis=(AnalysisOut.model_validate(a) if (a := analysis_service.latest(intake)) else None),
         confirmed_department=(DepartmentRef.model_validate(intake.confirmed_department)
                               if intake.confirmed_department else None),
-        symptoms=[SymptomOut.model_validate(s) for s in symptom_service.for_intake(db, intake.id)],
+        symptoms=[SymptomOut.model_validate(s) for s in symptom_rows],
+        field_evidence=evidence.field_evidence(
+            symptoms=symptom_rows, analysis=analysis_service.latest(intake),
+            translation_status=intake.translation_status, confirmed_department=intake.confirmed_department),
+        priority=intake.priority, priority_source=intake.priority_source,
+        priority_reason=intake.priority_reason, priority_changed_at=intake.priority_changed_at,
+        priority_changed_by_user_id=intake.priority_changed_by_user_id,
     )
 
 

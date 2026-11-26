@@ -18,7 +18,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .analysis ul{margin:6px 0 10px 18px}
 .analysis-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:10px 0}
 .attention-box{background:#fff1f0;border:1px solid #f5b5ae;color:#8a1c12;border-radius:10px;padding:10px 12px}
-.status.attention{background:#fde2df;color:#8a1c12;margin-left:6px}
+.status.priority{margin-right:6px;font-weight:700}.status.priority.urgent{background:#d93025;color:#fff}.status.priority.normal{background:#e6efe3;color:#2f5d3a}.priority-panel.urgent{border-left:4px solid #d93025;padding-left:12px}.status.evidence.done{background:#e3f1e5;color:#245a33}.status.evidence.wait{background:#fff1d6;color:#7a5200}.status.evidence.blue{background:#e1ecfa;color:#1d4f91}.status.evidence.empty{background:#eceff1;color:#4b5a66}.field-evidence .field-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}.field-evidence .field-row b{min-width:92px}.status.attention{background:#fde2df;color:#8a1c12;margin-left:6px}
 small.suggestion{display:block;margin-top:4px;color:var(--muted)}
 .dept-select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;margin-top:8px}
 /* Phase 7: queue, visit status, dashboards */
@@ -78,7 +78,7 @@ html[lang=ur] h1,html[lang=ur] h2,html[lang=ur] h3,html[lang=ur] .btn{line-heigh
 .history .encounter ul{margin:4px 0 4px 18px}
 [dir=rtl] .history{border-left:0;padding-left:0;border-right:4px solid #3b82c4;padding-right:14px}
 .script-hint{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#eef5fb;border:1px solid #bcd6ee;color:#23496b;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px;line-height:1.5}
-.asr-note{background:#fff7e6;border:1px solid #f0d49a;color:#6b4a0b;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px;line-height:1.55;text-align:start}
+.asr-note.suggested{background:#eef5fb;border-color:#bcd6ee;color:#23496b}.asr-note p{margin:0 0 6px}.asr-note .actions{display:flex;gap:14px;flex-wrap:wrap}.asr-note{background:#fff7e6;border:1px solid #f0d49a;color:#6b4a0b;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px;line-height:1.55;text-align:start}
 html[lang=doi] body{font-family:"Noto Sans Devanagari","Mangal","DM Sans",system-ui,sans-serif;line-height:1.7}
 html[lang=doi] h1,html[lang=doi] h2,html[lang=doi] h3,html[lang=doi] .btn{line-height:1.55}
 .message p{overflow-wrap:anywhere}

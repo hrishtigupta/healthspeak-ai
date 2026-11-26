@@ -82,6 +82,18 @@ class ReviewStatus(StrEnum):
     CONFIRMED = "confirmed"  # an authorised staff member confirmed the final text
 
 
+class IntakePriority(StrEnum):
+    """Urgent / Normal flag on an intake record (from the existing emergency rules; staff may change it)."""
+
+    URGENT = "urgent"
+    NORMAL = "normal"
+
+
+class PrioritySource(StrEnum):
+    SYSTEM = "system"  # set by the emergency rules
+    STAFF = "staff"  # set or changed by a staff member (with a reason); the system never overrides it
+
+
 class QueueStatus(StrEnum):
     WAITING = "waiting"
     CHECKED_IN = "checked_in"

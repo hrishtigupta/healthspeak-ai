@@ -94,6 +94,7 @@ const suites = [
   ["10-script-hint.mjs"],
   ["11-real-translation.mjs"], // skips itself when the local translation model is not installed
   ["12-chat-profile-otp.mjs"], // needs APP_ENV=development + SMS_PROVIDER=console (the local default)
+  ["14-priority-evidence-guard.mjs"], // input guard, saved Urgent/Normal priority, per-field evidence labels
   ["13-dogri.mjs"], // Dogri: picker, chat, urgent symptoms, staff view (real translation if the model is installed)
 ];
 

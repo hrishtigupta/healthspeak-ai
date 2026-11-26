@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.ai import department_classification, text_processing, translation_checks
 from app.core.enums import TranslationStatus
 from app.database.models import IntakeAnalysis, IntakeRecord, User
-from app.services import audit_service, department_service, symptom_service
+from app.services import audit_service, department_service, priority_service, symptom_service
 
 
 class NoTextToAnalyse(Exception):
@@ -49,6 +49,7 @@ def analyse(db: Session, intake: IntakeRecord, *, source: str = "english_text",
     )
     db.add(rec)
     db.flush()
+    priority_service.raise_if_urgent(intake, analysis=rec)  # only ever raises; never lowers
     symptom_service.store_from_analysis(db, intake, rec, rec.extraction)
     audit_service.record(db, "intake.analysed", actor_user_id=actor.id if actor else None,
                          target_type="intake", target_id=intake.id,

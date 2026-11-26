@@ -30,6 +30,7 @@ from app.schemas.intake import (
     MessageCreate,
     MessageExchange,
     MessageOut,
+    PriorityChange,
     TranscriptionOut,
 )
 from app.services import (
@@ -38,6 +39,7 @@ from app.services import (
     history_service,
     intake_service,
     patient_service,
+    priority_service,
     speech_service,
     symptom_service,
     translation_service,
@@ -186,6 +188,18 @@ def read_intake(intake_id: uuid.UUID, staff: User = Depends(staff_only),
 def correct_intake(intake_id: uuid.UUID, body: IntakeCorrection, staff: User = Depends(staff_only),
                    db: Session = Depends(get_db)) -> IntakeStaffView:
     intake = intake_service.correct(db, _intake_or_404(intake_id, db), staff, body.final_text, body.reason)
+    return intake_service.staff_view(db, intake, staff)
+
+
+@router.patch("/intakes/{intake_id}/priority", response_model=IntakeStaffView)
+def change_priority(intake_id: uuid.UUID, body: PriorityChange, staff: User = Depends(staff_only),
+                    db: Session = Depends(get_db)) -> IntakeStaffView:
+    """Staff set Urgent / Normal. A reason is required; the change is audited and kept as a revision."""
+    intake = _intake_or_404(intake_id, db)
+    try:
+        priority_service.set_by_staff(db, intake, staff, body.priority, body.reason)
+    except priority_service.PriorityUnchanged:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The priority is already set to that value by staff.") from None
     return intake_service.staff_view(db, intake, staff)
 
 

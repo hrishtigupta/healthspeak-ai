@@ -49,6 +49,18 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "and": " and ",
         "unsure": "(not sure)",
         "thanks": "Thank you.",
+        "hello": "Hello! I'm the HealthSpeak intake assistant.",
+        # --- input guard (off-topic / unsafe / service questions) ---
+        "off_topic": ("I'm here to help with health-related concerns, symptoms, and hospital services. Please "
+                      "describe your health concern or ask about an appointment."),
+        "off_topic_short": "Whenever you are ready, please tell me about your health concern.",
+        "unsafe": ("I can't help with that. I can only help with health concerns and hospital services. If "
+                   "someone is in immediate danger, please call {number}. If you have a health concern, please "
+                   "describe it."),
+        "service_help": ("I can help you describe your health concern so staff can suggest the right department. "
+                         "Appointments and visit status are handled by the hospital staff after they review your "
+                         "concern, and you can see its status on your dashboard. Please describe your health "
+                         "concern to begin."),
     },
     "hi": {
         "empathy": "आपकी तबीयत ठीक नहीं है, यह जानकर मुझे दुख है।",
@@ -87,6 +99,17 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "and": " और ",
         "unsure": "(पक्का नहीं)",
         "thanks": "धन्यवाद।",
+        "hello": "नमस्ते! मैं HealthSpeak जानकारी सहायक हूँ।",
+        "off_topic": ("मैं स्वास्थ्य संबंधी समस्याओं, लक्षणों और अस्पताल की सेवाओं में मदद के लिए हूँ। कृपया अपनी "
+                      "स्वास्थ्य समस्या या अपॉइंटमेंट के बारे में बताएं।"),
+        "off_topic_short": "जब आप तैयार हों, कृपया अपनी स्वास्थ्य समस्या बताएं।",
+        "unsafe": ("मैं इसमें मदद नहीं कर सकता। मैं केवल स्वास्थ्य संबंधी समस्याओं और अस्पताल की सेवाओं में मदद कर "
+                   "सकता हूँ। अगर कोई तुरंत खतरे में है तो कृपया {number} पर कॉल करें। अगर आपको कोई स्वास्थ्य "
+                   "समस्या है तो कृपया बताएं।"),
+        "service_help": ("मैं आपकी स्वास्थ्य समस्या बताने में मदद कर सकता हूँ ताकि कर्मचारी सही विभाग सुझा सकें। "
+                         "अपॉइंटमेंट और विज़िट की स्थिति आपकी समस्या की समीक्षा के बाद अस्पताल के कर्मचारी संभालते "
+                         "हैं; इसकी स्थिति आप अपने डैशबोर्ड पर देख सकते हैं। शुरू करने के लिए कृपया अपनी स्वास्थ्य "
+                         "समस्या बताएं।"),
     },
     "ur": {
         "empathy": "مجھے افسوس ہے کہ آپ کی طبیعت ٹھیک نہیں ہے۔",
@@ -125,6 +148,16 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "and": " اور ",
         "unsure": "(یقین نہیں)",
         "thanks": "شکریہ۔",
+        "hello": "السلام علیکم! میں HealthSpeak معلوماتی معاون ہوں۔",
+        "off_topic": ("میں صحت سے متعلق مسائل، علامات اور ہسپتال کی خدمات میں مدد کے لیے ہوں۔ براہ کرم اپنا صحت کا "
+                      "مسئلہ بتائیں یا اپائنٹمنٹ کے بارے میں پوچھیں۔"),
+        "off_topic_short": "جب آپ تیار ہوں، براہ کرم اپنا صحت کا مسئلہ بتائیں۔",
+        "unsafe": ("میں اس میں مدد نہیں کر سکتا۔ میں صرف صحت کے مسائل اور ہسپتال کی خدمات میں مدد کر سکتا ہوں۔ اگر "
+                   "کوئی فوری خطرے میں ہے تو براہ کرم {number} پر کال کریں۔ اگر آپ کو صحت کا کوئی مسئلہ ہے تو براہ "
+                   "کرم بتائیں۔"),
+        "service_help": ("میں آپ کو اپنا صحت کا مسئلہ بتانے میں مدد کر سکتا ہوں تاکہ عملہ مناسب شعبہ تجویز کر سکے۔ "
+                         "اپائنٹمنٹ اور وزٹ کی صورتحال آپ کے مسئلے کے جائزے کے بعد ہسپتال کا عملہ سنبھالتا ہے؛ اس کی "
+                         "حالت آپ اپنے ڈیش بورڈ پر دیکھ سکتے ہیں۔ شروع کرنے کے لیے براہ کرم اپنا صحت کا مسئلہ بتائیں۔"),
     },
     # *** DRAFT Dogri (Devanagari). Written without a fluent-speaker review: it must be checked by a
     # native Dogri speaker and a clinician before real patients rely on it. ***
@@ -167,6 +200,18 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "and": " ते ",
         "unsure": "(पक्का नेईं)",
         "thanks": "धन्नवाद।",
+        # DRAFT Dogri wording (needs a fluent speaker's review)
+        "hello": "नमस्ते! मैं HealthSpeak जानकारी सहायक आं।",
+        "off_topic": ("मैं सेहत दी परेशानियें, लक्षणें ते अस्पताल दी सेवाएं च मदद आस्तै आं। मेहरबानी करियै अपनी "
+                      "सेहत दी परेशानी दस्सो जां अपॉइंटमेंट बारे पुच्छो।"),
+        "off_topic_short": "जिसले तुस तैयार ओ, मेहरबानी करियै अपनी सेहत दी परेशानी दस्सो।",
+        "unsafe": ("मैं इस च मदद नेईं करी सकदा। मैं सिर्फ सेहत दी परेशानियें ते अस्पताल दी सेवाएं च मदद करी "
+                   "सकदा आं। जेकर कोई फौरन खतरे च ऐ, तां मेहरबानी करियै {number} पर फोन करो। जेकर तुंदी सेहत "
+                   "दी कोई परेशानी ऐ, तां मेहरबानी करियै दस्सो।"),
+        "service_help": ("मैं तुंदी सेहत दी परेशानी दस्सने च मदद करी सकदा आं, ताकि स्टाफ ठीक विभाग सुझाई सकै। "
+                         "अपॉइंटमेंट ते विज़िट दी स्थिति तुंदी परेशानी दी समीक्षा परैंत अस्पताल दा स्टाफ संभालदा ऐ; "
+                         "इसदी स्थिति तुस अपने डैशबोर्ड पर दिक्खी सकदे ओ। शुरू करने आस्तै मेहरबानी करियै अपनी "
+                         "सेहत दी परेशानी दस्सो।"),
     },
 }
 
