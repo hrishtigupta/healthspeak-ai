@@ -57,7 +57,7 @@ export async function launch({ browser, port = 9333, url = "about:blank", args =
     async goto(u) {
       await send("Page.navigate", { url: u });
       await sleep(300);
-      await page.waitFor("document.readyState === 'complete'");
+      await page.waitFor("document.readyState === 'complete'", 30000); // first load can be slow while Vite compiles
       await page.eval(HELPERS);
     },
     async waitFor(expr, timeout = 8000) {

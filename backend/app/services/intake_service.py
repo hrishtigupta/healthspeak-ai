@@ -27,6 +27,7 @@ from app.database.models import (
     Patient,
     User,
 )
+from app.schemas.history import SymptomOut
 from app.schemas.intake import (
     AnalysisOut,
     DepartmentRef,
@@ -45,6 +46,7 @@ from app.services import (
     notification_service,
     patient_service,
     queue_service,
+    symptom_service,
     translation_service,
 )
 
@@ -258,6 +260,7 @@ def staff_view(db: Session, intake: IntakeRecord, staff: User) -> IntakeStaffVie
         analysis=(AnalysisOut.model_validate(a) if (a := analysis_service.latest(intake)) else None),
         confirmed_department=(DepartmentRef.model_validate(intake.confirmed_department)
                               if intake.confirmed_department else None),
+        symptoms=[SymptomOut.model_validate(s) for s in symptom_service.for_intake(db, intake.id)],
     )
 
 
@@ -302,8 +305,12 @@ def confirm(db: Session, intake: IntakeRecord, staff: User, final_text: str | No
     intake.review_status = ReviewStatus.CONFIRMED.value
     intake.reviewed_by_user_id = staff.id
     intake.reviewed_at = _now()
+    latest = analysis_service.latest(intake)
+    suggested = latest.suggestion.get("department_code") if latest else None
     audit_service.record(db, "intake.confirmed", actor_user_id=staff.id, target_type="intake",
-                         target_id=intake.id, details={"department": department.code})
+                         target_id=intake.id,
+                         details={"department": department.code, "suggested": suggested,
+                                  "followed_suggestion": suggested == department.code})
     # Same transaction: confirming routes the patient into the department's queue
     # (unless they already have an active visit today).
     try:

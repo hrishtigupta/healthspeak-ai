@@ -33,6 +33,9 @@ from app.core.enums import (
     InputMode,
     MessageSender,
     ReviewStatus,
+    SymptomMatchType,
+    SymptomReviewStatus,
+    SymptomStatus,
     TranscriptionStatus,
     TranslationStatus,
     sql_in_list,
@@ -242,3 +245,70 @@ class IntakeRevision(UuidPk, Base):
     )
 
     intake: Mapped[IntakeRecord] = relationship(back_populates="revisions")
+
+
+class ExtractedSymptom(UuidPk, Base):
+    """One symptom mention found in an analysis, plus what staff decided about it.
+
+    The AI columns (term, status, subject, evidence...) are written once and never
+    edited. Staff decisions live in the review columns, so "what the AI saw" and
+    "what staff confirmed" can always be told apart. Every staff change is also
+    appended to intake_revisions (field = 'symptom').
+    """
+
+    __tablename__ = "extracted_symptoms"
+    __table_args__ = (
+        CheckConstraint(f"status IN ({sql_in_list(SymptomStatus)})", name="status_valid"),
+        CheckConstraint(f"match_type IN ({sql_in_list(SymptomMatchType)})", name="match_type_valid"),
+        CheckConstraint(f"review_status IN ({sql_in_list(SymptomReviewStatus)})",
+                        name="review_status_valid"),
+        CheckConstraint(f"confirmed_status IS NULL OR confirmed_status IN ({sql_in_list(SymptomStatus)})",
+                        name="confirmed_status_valid"),
+        Index("ix_extracted_symptoms_patient_term", "patient_id", "term"),
+    )
+
+    analysis_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("intake_analyses.id", ondelete="RESTRICT"), index=True
+    )
+    intake_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("intake_records.id", ondelete="RESTRICT"), index=True
+    )
+    # Denormalised from the intake so a patient's history is one indexed lookup.
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("patients.id", ondelete="RESTRICT"), index=True
+    )
+    # --- what the system found (immutable) ---
+    term: Mapped[str] = mapped_column(String(60))
+    symptom_code: Mapped[str | None] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(16))
+    subject: Mapped[str] = mapped_column(String(16), default="self")
+    match_type: Mapped[str] = mapped_column(String(8), default=SymptomMatchType.EXACT.value)
+    evidence_text: Mapped[str | None] = mapped_column(Text)
+    evidence_start: Mapped[int | None] = mapped_column(Integer)
+    evidence_end: Mapped[int | None] = mapped_column(Integer)
+    attributes: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # --- what staff decided ---
+    review_status: Mapped[str] = mapped_column(String(12), default=SymptomReviewStatus.UNREVIEWED.value)
+    confirmed_term: Mapped[str | None] = mapped_column(String(60))
+    confirmed_status: Mapped[str | None] = mapped_column(String(16))
+    review_note: Mapped[str | None] = mapped_column(String(500))
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False
+    )
+
+    @property
+    def effective_term(self) -> str:
+        return self.confirmed_term or self.term
+
+    @property
+    def effective_status(self) -> str:
+        return self.confirmed_status or self.status
+
+    @property
+    def is_staff_confirmed(self) -> bool:
+        return self.review_status in (SymptomReviewStatus.CONFIRMED.value,
+                                      SymptomReviewStatus.CORRECTED.value)

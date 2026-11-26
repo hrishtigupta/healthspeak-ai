@@ -284,6 +284,66 @@ Default departments/rules (`app/core/default_routing.py`, DRAFT) are created by
 | `POST /api/intakes/{id}/analyse` | staff | Re-run analysis (`{"source": "final_text"}` uses the staff-reviewed text) |
 | `POST /api/intakes/{id}/confirm` | staff | Now requires `department_id` |
 
+## Context-aware extraction, symptom review and returning-patient history
+
+**Extraction (`rules-v2`)** still only reports what the patient literally said, but
+every symptom mention now carries a status:
+
+| Status | Example | Counts for routing? |
+|---|---|---|
+| `current` | "I have a cough" | yes |
+| `uncertain` | "I think I might have a fever" | yes, flagged for review |
+| `negated` | "I do not have fever" | no |
+| `historical` | "I had fever last week" | no |
+| `third_party` | "my mother has a headache" | no |
+
+Severity, duration, frequency, timing and triggers are attached to a symptom
+only when stated in the **same clause** (marked `shared` when the clause names
+several symptoms). One-typo spellings ("vomitting") are matched conservatively
+(6+ letters, same first letter, never when two symptoms are equally close, with
+an ordinary-word stoplist) and flagged for review. Text that matched nothing is
+kept verbatim in `extraction.unmatched`. Symptom ids are internal (`hs.fever`);
+`external_codes` is empty on purpose: SNOMED/ICD mapping needs a clinical
+terminologist and must not be guessed.
+
+**Department suggestion** ignores negated / past / other-person phrases (listed
+under `suggestion.excluded`), can return `out_of_scope` or `ambiguous`, lists
+`review_reasons`, and **never reports a confidence number** (rule weights are not
+probabilities). It is never final: staff choose the department. A trained model
+can be plugged in later through `DepartmentClassifier` /
+`register_classifier` once a reviewed, labelled dataset exists; none does today.
+Urgent escalation stays with the hospital's own workflow; "attention" phrases are
+only a visible flag.
+
+**Translation safety.** Machine-translated English is always flagged for review,
+and `app/ai/translation_checks.py` warns when a negation word or a number in the
+Hindi/Urdu original has no counterpart in the English. The original text is
+never overwritten.
+
+**Persistence (migration `0009`, additive only).** `extracted_symptoms` stores
+the AI reading (immutable) beside the staff decision (`review_status`,
+`confirmed_term`, `confirmed_status`, reviewer, time, note). Each staff change is
+also appended to `intake_revisions` (`field = 'symptom'`) and the audit log.
+Reviews carry over when an intake is re-analysed. Analyses made before the
+migration keep their JSON; "Re-create summary" creates the rows.
+
+**Returning patients.** Each submission is its own intake (encounter) tied to the
+patient *record id* of the logged-in account — never matched by name or phone.
+History is assembled when read, so earlier encounters are never copied into or
+changed by new ones.
+
+| Method & path | Who | Purpose |
+|---|---|---|
+| `GET /api/intakes/{id}/history?limit&offset` | staff | Earlier encounters of the same patient (before this intake) + recurring symptoms; audited |
+| `GET /api/patients/{id}/history?limit&offset` | staff | All encounters of one patient; audited |
+| `GET /api/patients/me/history?limit&offset` | patient | Own visits, staff-confirmed information only (no AI output) |
+| `POST /api/intakes/{id}/symptoms/{symptom_id}/review` | staff | `confirm` / `reject` / `correct` one symptom |
+| `POST /api/intakes/{id}/symptoms` | staff | Add a symptom the system missed |
+
+Limits: `limit` 1–50. Symptom changes are refused (409) once an intake is
+confirmed. Doctors and admins have no history access yet (doctor access should
+follow the queue-assignment rules).
+
 ## Queue, appointments, notifications, dashboards (Phase 7)
 
 - **Queue (D5):** confirming an intake puts the patient in that department's
@@ -374,6 +434,24 @@ translations, and kiosks online.
 **Accessibility:** visible keyboard focus, labelled icon-only buttons and form
 fields, `aria-live` notifications, reduced-motion support, `lang`/`dir` set on
 the page.
+
+## Profile, past history and forgot-password (patients)
+
+- **My Profile** (`GET/PATCH /api/patients/me`): a patient can change name, date of birth, gender and
+  speaking language. Mobile number and email are shown read-only (they are the login; changing them
+  is done at the front desk). Past visits are never copied from the profile, so editing it cannot
+  change them.
+- **Past History** (`GET /api/patients/me/history`): its own page, read-only. The dashboard's
+  *View* button on a submitted concern opens this page with that visit highlighted.
+- **Forgot password by SMS code** (`POST /api/auth/password-reset/request` then `/confirm`):
+  patients only. 6-digit code, valid 10 minutes, stored only as a hash, locked after 5 wrong tries,
+  one new code per minute and 5 per hour. The request step answers the same for every number. A
+  successful reset signs the account out on all devices and clears any login lockout. Staff, doctor
+  and admin passwords are still reset by an administrator.
+- **Delivery:** `SMS_PROVIDER=console` (default) prints the code in the API window - local demo only,
+  refused in production. `SMS_PROVIDER=twilio` sends a real SMS (needs your Twilio account; the Twilio
+  call itself is not tested here). Sending phone numbers to an SMS provider is a privacy decision for
+  the hospital to approve first.
 
 ## Tests
 

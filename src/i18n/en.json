@@ -80,6 +80,9 @@
     "assistant": "HealthSpeak AI Intake Assistant", "assistantShort": "AI Intake Assistant", "endChat": "End Chat",
     "greeting": "Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?",
     "placeholder": "Type your message here...", "send": "Send", "voice": "Use voice",
+    "scriptHintHi": "It looks like you are typing Hindi in English letters. For the most accurate result, please type in Devanagari (हिंदी) or tap the microphone and speak. If you are writing in English, switch the language to English.",
+    "scriptHintUr": "It looks like you are typing Urdu in English letters. For the most accurate result, please type in Urdu script (اردو) or tap the microphone and speak. If you are writing in English, switch the language to English.",
+    "scriptHintVoice": "Use voice instead",
     "footer": "Medical staff review information before care decisions.",
     "endTitle": "End this conversation?",
     "endText": "Your concern will be sent to the medical staff for review. You can see its status on your dashboard.",
@@ -138,7 +141,43 @@
     "kiosks": "KIOSKS", "online": "online", "offline": "offline", "never": "never seen", "lastSeen": "last seen {{t}}"
   },
   "kiosk": { "idleLogout": "You were logged out because the kiosk was not used for a while." },
+  "profile": {
+    "title": "My Profile",
+    "email": "Email",
+    "save": "Save changes",
+    "saving": "Saving...",
+    "saved": "Your details have been updated.",
+    "nameRequired": "Please enter your name.",
+    "contactNote": "Your mobile number is used to log in and to reset your password. To change it, ask the hospital front desk.",
+    "historyUnchanged": "Changing these details does not change your past visit records."
+  },
+  "history": {
+    "title": "Past History",
+    "notice": "Your previous visits. Only information a staff member has confirmed is shown as confirmed. Past symptoms are not assumed to be current.",
+    "none": "You have no past visits yet.",
+    "confirmedSymptoms": "Symptoms confirmed by staff",
+    "more": "Show older visits"
+  },
+  "forgot": {
+    "intro": "Enter the mobile number of your account. We will send you a 6-digit code by SMS.",
+    "needMobile": "Enter your mobile number.",
+    "sendCode": "Send code",
+    "sending": "Sending...",
+    "staffNote": "Staff, doctor and administrator accounts are reset by the hospital administrator.",
+    "sent": "If this mobile number has a patient account, a 6-digit code has been sent. It expires in 10 minutes.",
+    "code": "6-digit code",
+    "newPassword": "New password (at least 8 characters)",
+    "confirmPassword": "Repeat new password",
+    "needCode": "Enter the 6-digit code.",
+    "pwShort": "The new password needs at least 8 characters.",
+    "pwMismatch": "The two passwords do not match.",
+    "reset": "Set new password",
+    "saving": "Saving...",
+    "resend": "Send a new code",
+    "done": "Password changed. Please log in with your new password."
+  },
   "errors": {
+    "badCode": "The code is wrong or has expired. You can request a new code.",
     "network": "Cannot reach the HealthSpeak server. Please check that the backend is running.",
     "invalidCredentials": "The email/mobile number or password is not correct.",
     "duplicateAccount": "An account with this mobile number or email already exists. Please log in.",

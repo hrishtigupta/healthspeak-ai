@@ -8,9 +8,10 @@ import hashlib
 
 from sqlalchemy.orm import Session
 
-from app.ai import department_classification, text_processing
+from app.ai import department_classification, text_processing, translation_checks
+from app.core.enums import TranslationStatus
 from app.database.models import IntakeAnalysis, IntakeRecord, User
-from app.services import audit_service, department_service
+from app.services import audit_service, department_service, symptom_service
 
 
 class NoTextToAnalyse(Exception):
@@ -24,6 +25,14 @@ def analyse(db: Session, intake: IntakeRecord, *, source: str = "english_text",
         raise NoTextToAnalyse
     extraction = text_processing.extract(text)
     summary = text_processing.summarize(extraction)
+    extraction_data = extraction.to_dict()
+    extraction_data["translation_warnings"] = []
+    if source == "english_text" and intake.translation_status == TranslationStatus.COMPLETED.value:
+        # The English text is machine output: always say so, and flag lost negations/numbers.
+        warnings = translation_checks.check(intake.original_text, text)
+        extraction_data["translation_warnings"] = warnings
+        extraction_data["review_reasons"] = [translation_checks.MACHINE_TRANSLATION_NOTE, *warnings,
+                                             *extraction_data["review_reasons"]]
     default = department_service.default_department(db)
     suggestion = department_classification.suggest(
         text, department_service.active_rules(db),
@@ -32,7 +41,7 @@ def analyse(db: Session, intake: IntakeRecord, *, source: str = "english_text",
     rec = IntakeAnalysis(
         intake=intake, source=source,
         source_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        extraction=extraction.to_dict(), summary=summary, suggestion=suggestion.to_dict(),
+        extraction=extraction_data, summary=summary, suggestion=suggestion.to_dict(),
         suggested_department_id=suggestion.department_id, needs_attention=bool(suggestion.attention),
         engine_version=f"{extraction.engine_version}/{extraction.lexicon_version}",
         ruleset_version=suggestion.ruleset_version,
@@ -40,6 +49,7 @@ def analyse(db: Session, intake: IntakeRecord, *, source: str = "english_text",
     )
     db.add(rec)
     db.flush()
+    symptom_service.store_from_analysis(db, intake, rec, rec.extraction)
     audit_service.record(db, "intake.analysed", actor_user_id=actor.id if actor else None,
                          target_type="intake", target_id=intake.id,
                          details={"source": source, "status": suggestion.status,

@@ -111,6 +111,29 @@ class AppointmentStatus(StrEnum):
     NO_SHOW = "no_show"
 
 
+class SymptomStatus(StrEnum):
+    """What the patient's words say about one symptom mention (machine-assigned, never edited)."""
+
+    CURRENT = "current"
+    UNCERTAIN = "uncertain"  # patient sounded unsure
+    NEGATED = "negated"  # patient said they do NOT have it
+    HISTORICAL = "historical"  # described as past
+    THIRD_PARTY = "third_party"  # described for another person
+
+
+class SymptomReviewStatus(StrEnum):
+    UNREVIEWED = "unreviewed"  # AI output only
+    CONFIRMED = "confirmed"  # staff agree with the AI's reading
+    CORRECTED = "corrected"  # staff changed the symptom and/or its status
+    REJECTED = "rejected"  # staff say this is not a symptom of the patient
+
+
+class SymptomMatchType(StrEnum):
+    EXACT = "exact"
+    FUZZY = "fuzzy"  # one-typo match
+    STAFF = "staff"  # added by a staff member
+
+
 def sql_in_list(enum_cls: type[StrEnum]) -> str:
     """Render "'a', 'b', 'c'" for use inside a CHECK constraint."""
     return ", ".join(f"'{m.value}'" for m in enum_cls)

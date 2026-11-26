@@ -18,7 +18,8 @@ import sys
 from app.core.config import get_settings
 
 ASR_PATTERNS = ["*.json", "*.txt", "model.safetensors"]
-TRANSLATION_PATTERNS = ["*.json", "*.txt", "*.py", "*.model", "model.safetensors"]
+# IndicTrans2 ships its SentencePiece tokenizers as "model.SRC" / "model.TGT" (not "*.model").
+TRANSLATION_PATTERNS = ["*.json", "*.txt", "*.py", "*.model", "model.SRC", "model.TGT", "model.safetensors"]
 
 
 def _download(model_id: str, revision: str, patterns: list[str]) -> None:

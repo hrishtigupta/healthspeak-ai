@@ -29,8 +29,15 @@ from app.schemas.patient import (
     PatientSelfRegister,
     PatientUpdate,
 )
+from app.schemas.history import HistoryOut, PatientHistoryOut
 from app.schemas.user import UserOut
-from app.services import auth_service, patient_service, user_service
+from app.services import (
+    audit_service,
+    auth_service,
+    history_service,
+    patient_service,
+    user_service,
+)
 
 router = APIRouter(tags=["patients"])
 
@@ -112,6 +119,13 @@ def record_my_consent(body: ConsentDecision, patient: Patient = Depends(_my_pati
         _raise_consent(e)
 
 
+@router.get("/patients/me/history", response_model=PatientHistoryOut)
+def my_history(limit: int = Query(10, ge=1, le=50), offset: int = Query(0, ge=0),
+               patient: Patient = Depends(_my_patient), db: Session = Depends(get_db)) -> PatientHistoryOut:
+    """The logged-in patient's own earlier visits: staff-confirmed information only."""
+    return history_service.for_own_account(db, patient.id, limit=limit, offset=offset)
+
+
 # ---- front-desk staff ----
 
 def _patient_or_404(patient_id: uuid.UUID, db: Session) -> Patient:
@@ -144,6 +158,17 @@ def read_patient(patient_id: uuid.UUID, staff: User = Depends(staff_only),
     patient = _patient_or_404(patient_id, db)
     patient_service.audit_view(db, patient, staff)
     return patient_service.to_out(patient)
+
+
+@router.get("/patients/{patient_id}/history", response_model=HistoryOut)
+def patient_history(patient_id: uuid.UUID, limit: int = Query(10, ge=1, le=50), offset: int = Query(0, ge=0),
+                    staff: User = Depends(staff_only), db: Session = Depends(get_db)) -> HistoryOut:
+    """Earlier encounters of one verified patient (by record id, never by name). Audited."""
+    patient = _patient_or_404(patient_id, db)
+    audit_service.record(db, "patient.history_viewed", actor_user_id=staff.id, target_type="patient",
+                         target_id=patient.id)
+    db.commit()
+    return history_service.for_patient(db, patient.id, limit=limit, offset=offset)
 
 
 @router.patch("/patients/{patient_id}", response_model=PatientOut)

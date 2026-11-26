@@ -21,3 +21,4 @@ storage/
 graphify-out/
 
 .claude/settings.json
+.vercel

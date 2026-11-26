@@ -6,6 +6,9 @@
 //
 //   node e2e/run-all.mjs            (from the repository root)
 //
+// Translation: suites 04/05 adapt to whether the local translation model is installed;
+// suite 11 exercises the real model and reports SKIPPED without it.
+//
 // Notes: the tests create SYNTHETIC patients and intakes in your development
 // database. The demo patient's display language is switched to English while the
 // tests run and restored afterwards.
@@ -40,8 +43,17 @@ function browserPath() {
   return found;
 }
 
+// Node's keep-alive sockets are sometimes reset by uvicorn (ECONNRESET): retry a few times.
+async function api(url, init) {
+  let last;
+  for (let i = 0; i < 4; i++) {
+    try { return await fetch(url, init); } catch (e) { last = e; await new Promise((r) => setTimeout(r, 400 * (i + 1))); }
+  }
+  throw last;
+}
+
 async function demoPatientLanguage(pw, lang) {
-  const login = await fetch(`${API}/auth/login`, {
+  const login = await api(`${API}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier: "patient@example.com", password: pw }),
@@ -49,20 +61,26 @@ async function demoPatientLanguage(pw, lang) {
   if (!login.ok) throw new Error("Cannot log in as the demo patient. Did you run python -m app.seed?");
   const { access_token: tok, user } = await login.json();
   if (lang) {
-    await fetch(`${API}/users/me/preferences`, {
+    await api(`${API}/users/me/preferences`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
       body: JSON.stringify({ ui_language: lang }),
     });
   }
-  await fetch(`${API}/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${tok}` } });
+  await api(`${API}/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${tok}` } });
   return user.ui_language;
 }
 
 const pw = seedPassword();
 const browser = browserPath();
-const health = await fetch(`${API}/health`).catch(() => null);
+let health = null;
+for (let i = 0; i < 4 && !(health && health.ok); i++) health = await fetch(`${API}/health`).catch(() => null);
 if (!health || !health.ok) throw new Error("API not reachable at 127.0.0.1:8000");
+
+// Warm up Vite (it compiles modules on first request; a cold start can make the first suite's page load time out).
+for (const path of ["/", "/src/main.jsx", "/src/App.jsx"]) {
+  await fetch(`http://127.0.0.1:5173${path}`).then((r) => r.arrayBuffer()).catch(() => {});
+}
 
 const suites = [
   ["03-login-signup.mjs"],
@@ -71,6 +89,9 @@ const suites = [
   ["06-structured-intake.mjs"],
   ["07-queue-appointments.mjs"],
   ["08-languages-kiosk.mjs"],
+  ["09-symptoms-history.mjs"],
+  ["10-script-hint.mjs"],
+  ["11-real-translation.mjs"], // skips itself when the local translation model is not installed
 ];
 
 const original = await demoPatientLanguage(pw, "en");

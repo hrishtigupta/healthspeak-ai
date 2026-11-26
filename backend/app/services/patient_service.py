@@ -153,6 +153,11 @@ def update(db: Session, patient: Patient, data: PatientUpdate, actor: User) -> P
         if getattr(patient, field) != value:
             setattr(patient, field, value)
             changed.append(field)
+    if "full_name" in changed and patient.user_id is not None:
+        # Keep the login account's display name in step with the profile.
+        account = db.get(User, patient.user_id)
+        if account is not None:
+            account.full_name = patient.full_name
     if changed:
         # Record WHICH fields changed, never their values (they are personal data).
         audit_service.record(db, "patient.updated", actor_user_id=actor.id, target_type="patient",

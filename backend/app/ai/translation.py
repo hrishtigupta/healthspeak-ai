@@ -89,7 +89,9 @@ class IndicTransEngine:
             inputs = self._tokenizer(batch, truncation=True, padding="longest", return_tensors="pt",
                                      return_attention_mask=True).to(self.device)
             with self._torch.no_grad():
-                out = self._model.generate(**inputs, use_cache=True, min_length=0, max_length=256,
+                # use_cache=False: the model's bundled code breaks on transformers' newer
+                # cache objects (verified with transformers 4.57). Slower, but correct.
+                out = self._model.generate(**inputs, use_cache=False, min_length=0, max_length=256,
                                            num_beams=5, num_return_sequences=1)
             decoded = self._tokenizer.batch_decode(out, skip_special_tokens=True,
                                                    clean_up_tokenization_spaces=True)

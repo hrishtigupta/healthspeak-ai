@@ -33,7 +33,6 @@ import {
   EyeOff,
   Phone,
   History,
-  ClipboardList,
   Sparkles,
   Headphones,
 } from "lucide-react";
@@ -46,6 +45,9 @@ import {
   GENDER_CODES,
   updateMyLanguage,
 } from "./services/auth.js";
+import Profile from "./pages/patient/Profile.jsx";
+import PastHistory from "./pages/patient/PastHistory.jsx";
+import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import {
   openConversation,
   sendMessage,
@@ -65,7 +67,9 @@ import {
   formatDate,
 } from "./services/intake.js";
 import { Btn, Brand, Field, Info, Stat, ModalBox, initials, pad2 } from "./components/ui.jsx";
+import { isRomanizedIndic } from "./utils/script.js";
 import QueuePanel from "./pages/staff/QueuePanel.jsx";
+import { HistoryPanel, StatusChip, SymptomsPanel } from "./pages/staff/IntakeInsights.jsx";
 import VisitWorkspace from "./pages/staff/VisitWorkspace.jsx";
 import DoctorHome from "./pages/doctor/DoctorHome.jsx";
 import AdminHome from "./pages/admin/AdminHome.jsx";
@@ -107,7 +111,7 @@ export default function App() {
     [message, Msg] = useState(""),
     [voice, V] = useState(""),
     [listening, Listen] = useState(false),
-    [summaryIntake, SummaryIntake] = useState(null), // intake shown on the summary page
+    [historyFocus, HistoryFocus] = useState(null), // visit highlighted on the past-history page
     [visitId, VisitId] = useState(null), // queue entry open in the visit workspace
     [staffDash, StaffDash] = useState(null), // today's counts for the staff overview
     [user, SetUser] = useState(null), // logged-in user from the backend
@@ -255,7 +259,7 @@ export default function App() {
     MyIntakeList(null);
     StaffIntakes(null);
     ReviewIntake(null);
-    SummaryIntake(null);
+    HistoryFocus(null);
     i18n.changeLanguage(deviceLanguage()); // back to this device's language
     go("home");
     notify(t("common.loggedOut"));
@@ -930,6 +934,14 @@ export default function App() {
                   <Mic />
                 </button>
               </div>
+              {isRomanizedIndic(message, LANGUAGE_CODES[language]) && (
+                <div className="script-hint" role="status" data-testid="script-hint">
+                  <span>{t(LANGUAGE_CODES[language] === "ur" ? "chat.scriptHintUr" : "chat.scriptHintHi")}</span>
+                  <button type="button" onClick={() => go("voice")}>
+                    {t("chat.scriptHintVoice")}
+                  </button>
+                </div>
+              )}
               <div className="sendline">
                 <input
                   value={message}
@@ -975,76 +987,32 @@ export default function App() {
           go={go}
           onLanguage={changeUiLanguage}
           intakes={myIntakeList}
+          onOpenHistory={() => {
+            HistoryFocus(null);
+            go("history");
+          }}
           onView={(intake) => {
-            SummaryIntake(intake);
-            go("summary");
+            HistoryFocus(intake.id);
+            go("history");
           }}
           notify={notify}
           userName={user && user.full_name}
           onLogout={doLogout}
         />
       )}
-      {page === "summary" && summaryIntake && (
-        <div className="summary">
-          <header>
-            <div>
-              <h2>{t("summary.title")}</h2>
-              <b>{formatDate(summaryIntake.created_at)}</b>
-            </div>
-            <Btn kind="outline" onClick={() => go("dashboard")}>
-              <ArrowLeft /> {t("common.back")}
-            </Btn>
-          </header>
-          <main>
-            <div className="quote">
-              <div className="avatar">{t("common.you")}</div>
-              <blockquote dir="auto">“{summaryIntake.original_text}”</blockquote>
-            </div>
-            <section className="structured">
-              <div className="section-title">
-                <h3>
-                  <ClipboardList /> {t("summary.status")}
-                </h3>
-                <span
-                  className={
-                    "status " +
-                    (summaryIntake.review_status === "confirmed" ? "done" : "wait")
-                  }
-                >
-                  {t(`review.${summaryIntake.review_status}`)}
-                </span>
-              </div>
-              <div className="summary-grid">
-                <Info
-                  label={t("summary.languageUsed")}
-                  value={t(`lang.${summaryIntake.original_language}`)}
-                />
-                <Info
-                  label={t("common.submitted")}
-                  value={formatDate(summaryIntake.created_at)}
-                />
-                <Info
-                  label={t("summary.reviewedBy")}
-                  value={
-                    summaryIntake.reviewed_at
-                      ? formatDate(summaryIntake.reviewed_at)
-                      : t("common.notYet")
-                  }
-                />
-                <Info
-                  label={t("common.department")}
-                  value={
-                    summaryIntake.confirmed_department_name ||
-                    t("common.assignedAfterReview")
-                  }
-                />
-              </div>
-              <p className="disclaimer">
-                <ShieldCheck /> {t("summary.disclaimer")}
-              </p>
-            </section>
-          </main>
-        </div>
+      {page === "profile" && user && user.role === "patient" && (
+        <Profile
+          onBack={() => go("dashboard")}
+          onSaved={(p) => SetUser({ ...user, full_name: p.full_name })}
+          notify={notify}
+        />
+      )}
+      {page === "history" && user && user.role === "patient" && (
+        <PastHistory
+          focusId={historyFocus}
+          onBack={() => go("dashboard")}
+          notify={notify}
+        />
       )}
       {page === "staff" && (
         <Staff
@@ -1073,6 +1041,7 @@ export default function App() {
           onRetryTranslation={retryReviewTranslation}
           onReanalyse={reanalyse}
           departments={departments}
+          notify={notify}
         />
       )}
       {page === "workspace" && visitId && user && (
@@ -1086,10 +1055,16 @@ export default function App() {
         />
       )}
       {modal === "forgot" && (
-        <ModalBox title={t("auth.forgotTitle")} close={() => Modal("")}>
-          <p>{t("auth.forgotText")}</p>
-          <Btn onClick={() => Modal("")}>{t("common.close")}</Btn>
-        </ModalBox>
+        <ForgotPassword
+          initialIdentifier={email}
+          close={() => Modal("")}
+          notify={notify}
+          onDone={(identifier) => {
+            E(identifier);
+            P("");
+            Modal("");
+          }}
+        />
       )}
       {modal === "consent" && (
         <ModalBox
@@ -1184,6 +1159,7 @@ function PatientDashboard({
   onLanguage,
   intakes,
   onView,
+  onOpenHistory,
   notify,
   userName,
   onLogout,
@@ -1198,18 +1174,16 @@ function PatientDashboard({
           <button className="active">
             <LayoutDashboard /> {t("dash.nav.dashboard")}
           </button>
-          <button onClick={() => notify(t("dash.profileSoon"))}>
+          <button onClick={() => go("profile")}>
             <User /> {t("dash.nav.profile")}
           </button>
           <button onClick={() => go("chat")}>
             <MessageCircle /> {t("dash.nav.chat")}
           </button>
           <button
-            onClick={() =>
-              document
-                .getElementById("history")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
+            onClick={() => {
+              onOpenHistory();
+            }}
           >
             <History /> {t("dash.nav.history")}
           </button>
@@ -1466,6 +1440,7 @@ function IntakeReview({
   onRetryTranslation,
   onReanalyse,
   departments,
+  notify,
 }) {
   const [text, SetText] = useState(
     intake.final_text || intake.english_text || "",
@@ -1518,6 +1493,7 @@ function IntakeReview({
                 {confirmed ? "Confirmed by staff" : "Unreviewed"}
               </span>
             </div>
+            <HistoryPanel intakeId={intake.id} />
             <div className="workspace-section">
               <span className="eyebrow">
                 PATIENT'S ORIGINAL WORDS · {LANGUAGE_NAMES[intake.original_language].toUpperCase()}
@@ -1611,6 +1587,7 @@ function IntakeReview({
               )}
             </div>
             <AnalysisPanel analysis={a} busy={busy} onReanalyse={onReanalyse} hasFinal={Boolean(intake.final_text)} />
+            <SymptomsPanel key={a ? a.id : "none"} intake={intake} notify={notify} />
           </section>
           <aside>
             <div className="side-card">
@@ -1669,7 +1646,11 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
     ambiguous: "Several departments possible — staff must choose",
     default: `No routing rule matched — default department ${sug.department_name}`,
     no_rules: "No routing rules configured",
+    out_of_scope: "No health concern found in the text — no department suggested",
   }[sug.status];
+  const reasons = [...(ex.review_reasons || []), ...(sug.review_reasons || [])];
+  const excluded = sug.excluded || [];
+  const unmatched = ex.unmatched || [];
   return (
     <div className="workspace-section analysis">
       <span className="eyebrow">
@@ -1682,6 +1663,16 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
           flag for staff, not a triage decision.
         </p>
       )}
+      {reasons.length > 0 && (
+        <div className="review-reasons">
+          <b>Check before relying on this:</b>
+          <ul>
+            {reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p>{a.summary}</p>
       <div className="analysis-grid">
         <div>
@@ -1691,6 +1682,7 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
               {ex.reported.map((m) => (
                 <li key={m.term}>
                   {m.term}: <q>{m.evidence.text}</q>
+                  {m.status === "uncertain" && <> <StatusChip value="uncertain" /></>}
                 </li>
               ))}
             </ul>
@@ -1698,6 +1690,23 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
             <p>None identified</p>
           )}
         </div>
+        {((ex.historical || []).length > 0 || (ex.third_party || []).length > 0) && (
+          <div>
+            <small>Not the patient's current symptoms</small>
+            <ul>
+              {(ex.historical || []).map((m) => (
+                <li key={"h" + m.term}>
+                  {m.term}: <q>{m.evidence.text}</q> <StatusChip value="historical" />
+                </li>
+              ))}
+              {(ex.third_party || []).map((m) => (
+                <li key={"t" + m.term}>
+                  {m.term}: <q>{m.evidence.text}</q> <StatusChip value="third_party" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div>
           <small>Said they do NOT have</small>
           {ex.denied.length ? (
@@ -1734,9 +1743,21 @@ function AnalysisPanel({ analysis: a, busy, onReanalyse, hasFinal }) {
           </>
         )}
       </p>
+      {excluded.length > 0 && (
+        <small className="suggestion">
+          Not used for routing:{" "}
+          {excluded.map((x) => `"${x.evidence}" (${x.reason.replace("_", " ")})`).join("; ")}
+        </small>
+      )}
+      {unmatched.length > 0 && (
+        <small className="suggestion">
+          Text not matched to any symptom (read it yourself):{" "}
+          {unmatched.map((u) => `"${u.text}"`).join(" / ")}
+        </small>
+      )}
       <small>
-        Rule-based suggestion, not a diagnosis. Rules {a.ruleset_version} ·{" "}
-        {a.engine_version}
+        Rule-based suggestion, not a diagnosis, no confidence score (rule weights are not probabilities).
+        Staff must confirm the department. Rules {a.ruleset_version} · {a.engine_version}
       </small>
       {hasFinal && (
         <div className="actions">

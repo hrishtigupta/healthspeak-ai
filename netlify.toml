@@ -1,0 +1,29 @@
+# Netlify settings for the HealthSpeak AI frontend (React + Vite).
+#
+# The backend (FastAPI + PostgreSQL + AI models) can NOT run on Netlify. The site only needs to
+# know the backend's HTTPS address at BUILD time:  VITE_API_BASE_URL=https://<your-backend>/api
+# Set it in Netlify > Site configuration > Environment variables (when Netlify builds) or in
+# your terminal before `npm run build` (when you upload the dist folder yourself).
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The app keeps its pages in React state (no URL routes), so no SPA redirect is needed.
+# Kiosk links use /?kiosk=<key>, which also resolves to index.html.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    # The voice screen needs the microphone; everything else stays off.
+    Permissions-Policy = "microphone=(self), camera=(), geolocation=()"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

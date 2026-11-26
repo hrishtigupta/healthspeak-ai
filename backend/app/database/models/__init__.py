@@ -6,12 +6,14 @@ from app.database.models.department import Department, RoutingRule
 from app.database.models.intake import (
     AudioTranscription,
     Conversation,
+    ExtractedSymptom,
     IntakeAnalysis,
     IntakeRecord,
     IntakeRevision,
     Message,
 )
 from app.database.models.kiosk import Kiosk
+from app.database.models.password_reset import PasswordResetCode
 from app.database.models.patient import ConsentRecord, Patient
 from app.database.models.user import User
 from app.database.models.visit import (
@@ -25,8 +27,8 @@ from app.database.models.visit import (
 
 __all__ = [
     "AudioTranscription", "AuditEvent", "AuthSession", "ConsentRecord", "Conversation", "Department",
-    "IntakeAnalysis", "IntakeRecord", "RoutingRule",
-    "IntakeRevision", "Message", "Patient", "User",
+    "ExtractedSymptom", "IntakeAnalysis", "IntakeRecord", "RoutingRule",
+    "IntakeRevision", "Message", "PasswordResetCode", "Patient", "User",
     "Appointment", "DoctorSchedule", "Notification", "QueueCounter", "QueueEntry", "QueueNote",
     "Kiosk",
 ]
