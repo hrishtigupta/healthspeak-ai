@@ -85,6 +85,11 @@ class Message(UuidPk, Base):
     input_mode: Mapped[str] = mapped_column(String(16))
     language: Mapped[str] = mapped_column(String(8))
     content: Mapped[str] = mapped_column(Text)
+    # Machine translation of `content` for Hindi/Urdu messages. `content` is never changed.
+    english_text: Mapped[str | None] = mapped_column(Text)
+    # Assistant messages: what the assistant understood and asked (stage, question slot,
+    # symptoms, urgency, preliminary department). Patient messages: details found in the reply.
+    meta: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False
     )

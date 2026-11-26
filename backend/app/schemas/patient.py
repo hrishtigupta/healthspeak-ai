@@ -143,6 +143,33 @@ class ConsentStatus(BaseModel):
     recorded_at: datetime | None
 
 
+class PhoneChangeRequest(BaseModel):
+    """Ask for a code to be sent to a NEW (or not-yet-verified) mobile number."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phone: str = Field(max_length=24)
+
+    @field_validator("phone")
+    @classmethod
+    def check_phone(cls, v: str) -> str | None:
+        return _phone(v, required=True)
+
+
+class PhoneChangeConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
+class PhoneCodeSent(BaseModel):
+    detail: str
+    phone: str
+    # Only present in development with the console SMS provider (never in production).
+    dev_code: str | None = None
+    dev_notice: str | None = None
+
+
 class PatientOut(BaseModel):
     id: uuid.UUID
     full_name: str
@@ -150,6 +177,8 @@ class PatientOut(BaseModel):
     age: int
     gender: Gender
     phone: str | None
+    # True only after the account holder confirmed this number with an SMS code.
+    phone_verified: bool = False
     email: str | None
     preferred_language: UiLanguage
     has_account: bool

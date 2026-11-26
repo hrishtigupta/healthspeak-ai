@@ -1,5 +1,5 @@
 {
-  "lang": { "en": "English", "hi": "Hindi", "ur": "Urdu", "display": "Display language", "speaking": "I will speak in" },
+  "lang": { "en": "English", "hi": "Hindi", "ur": "Urdu", "doi": "Dogri — डोगरी", "display": "Display language", "speaking": "I will speak in" },
   "common": {
     "login": "Log in", "logout": "Log out", "signup": "Sign up", "back": "Back", "backHome": "Back to home",
     "loading": "Loading...", "close": "Close", "open": "Open", "view": "View", "review": "Review",
@@ -74,14 +74,25 @@
     "notSupported": "Recording is not supported in this browser. Please type your concern.",
     "blocked": "Microphone access was blocked. Allow the microphone, or type your concern instead.",
     "speakFirst": "Please speak or enter your health concern first.",
-    "waitTranscribe": "Please wait until the recording has been transcribed."
+    "waitTranscribe": "Please wait until the recording has been transcribed.",
+    "limited": "Speech recognition for this language is limited. The text below may have mistakes or missing words. Please read it carefully and correct it before sending."
   },
   "chat": {
+    "thinking": "Reading your message...",
+    "reviewSend": "Review and send",
+    "reviewTitle": "Review and send to staff",
+    "reviewText": "This is what you told us. Medical staff will read your original words and confirm the department. You can go back and add more.",
+    "urgentBadge": "May need urgent care",
+    "suggestTitle": "Preliminary department suggestion",
+    "suggestStaffChoose": "Staff will choose the department",
+    "suggestNote": "Not a diagnosis. Medical staff will review and confirm.",
+    "strength": {"clear": "Clear match", "likely": "Likely match", "unclear": "Not clear yet"},
     "assistant": "HealthSpeak AI Intake Assistant", "assistantShort": "AI Intake Assistant", "endChat": "End Chat",
     "greeting": "Hello! Welcome to HealthSpeak AI. I can help you share your health concerns in your preferred language. What symptoms or concerns would you like to tell us about today?",
     "placeholder": "Type your message here...", "send": "Send", "voice": "Use voice",
     "scriptHintHi": "It looks like you are typing Hindi in English letters. For the most accurate result, please type in Devanagari (हिंदी) or tap the microphone and speak. If you are writing in English, switch the language to English.",
     "scriptHintUr": "It looks like you are typing Urdu in English letters. For the most accurate result, please type in Urdu script (اردو) or tap the microphone and speak. If you are writing in English, switch the language to English.",
+    "scriptHintDoi": "It looks like you are typing Dogri in English letters. For the most accurate result, please type in Devanagari (डोगरी) or tap the microphone and speak. If you are writing in English, switch the language to English.",
     "scriptHintVoice": "Use voice instead",
     "footer": "Medical staff review information before care decisions.",
     "endTitle": "End this conversation?",
@@ -142,6 +153,17 @@
   },
   "kiosk": { "idleLogout": "You were logged out because the kiosk was not used for a while." },
   "profile": {
+    "noPhone": "No mobile number yet",
+    "phoneVerified": "Verified",
+    "phoneUnverified": "Not verified",
+    "verifyNumber": "Verify this number",
+    "changePhone": "Change number",
+    "addPhone": "Add mobile number",
+    "newPhone": "Mobile number",
+    "phoneCodeNote": "We will send a 6-digit code to this number. Your current number stays in use until you enter the code.",
+    "codeSentTo": "A 6-digit code was sent to {{phone}}.",
+    "verifyAndSave": "Verify and save",
+    "phoneUpdated": "Your mobile number has been verified and saved.",
     "title": "My Profile",
     "email": "Email",
     "save": "Save changes",
@@ -159,6 +181,8 @@
     "more": "Show older visits"
   },
   "forgot": {
+    "devTitle": "Development mode",
+    "devText": "No real SMS was sent. This code is shown here only because the server is in development mode. Your code:",
     "intro": "Enter the mobile number of your account. We will send you a 6-digit code by SMS.",
     "needMobile": "Enter your mobile number.",
     "sendCode": "Send code",
@@ -177,6 +201,11 @@
     "done": "Password changed. Please log in with your new password."
   },
   "errors": {
+    "smsUnavailable": "SMS cannot be sent from this server right now. Please ask the hospital front desk for help.",
+    "smsSendFailed": "We could not send the SMS right now. Please try again in a few minutes.",
+    "phoneInUse": "This mobile number is already registered to another account.",
+    "phoneAlreadyVerified": "This is already your verified mobile number.",
+    "codeTooSoon": "A code was sent recently. Please wait a minute before asking for another.",
     "badCode": "The code is wrong or has expired. You can request a new code.",
     "network": "Cannot reach the HealthSpeak server. Please check that the backend is running.",
     "invalidCredentials": "The email/mobile number or password is not correct.",
@@ -186,6 +215,11 @@
     "silent": "We could not hear any speech. Please try again closer to the microphone.",
     "tooShort": "The recording is too short.", "tooLong": "The recording is too long. Please keep it under 2 minutes.",
     "noSpeech": "No words were recognised. Please try again.", "sessionExpired": "Please log in again.",
-    "notAllowed": "You do not have permission to do that.", "generic": "Something went wrong. Please try again."
+    "notAllowed": "You do not have permission to do that.", "generic": "Something went wrong. Please try again.",
+    "conversationClosed": "This conversation has already been sent. Please start a new one.",
+    "conversationTooLong": "This conversation is too long. Please send it and start a new one.",
+    "nothingToSubmit": "Please describe your concern before sending.",
+    "badTranscription": "That voice recording cannot be used for this message. Please record again.",
+    "emptyMessage": "Please write a message first."
   }
 }

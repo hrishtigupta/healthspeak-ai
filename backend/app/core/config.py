@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None
     twilio_from_number: str | None = None
+    # Show the one-time code on screen so a laptop demo works without an SMS account.
+    # None = automatic: ON only when APP_ENV=development AND SMS_PROVIDER=console. It can never
+    # be on in any other environment, whatever this is set to.
+    dev_otp_echo: bool | None = None
+
+    # --- Chat assistant ---
+    emergency_number: str = "112"  # shown in urgent-symptom guidance (India's unified number)
+    dialogue_max_questions: int = 4  # follow-up questions before the assistant summarises
 
     # Password for the synthetic demo users created by `python -m app.seed`.
     seed_demo_password: str | None = None

@@ -23,6 +23,9 @@ from app.schemas.patient import (
     ConsentOut,
     ConsentTextOut,
     PatientCreateByStaff,
+    PhoneChangeConfirm,
+    PhoneChangeRequest,
+    PhoneCodeSent,
     PatientList,
     PatientOut,
     PatientRegistered,
@@ -36,6 +39,8 @@ from app.services import (
     auth_service,
     history_service,
     patient_service,
+    phone_service,
+    sms_service,
     user_service,
 )
 
@@ -95,14 +100,64 @@ def _my_patient(user: User = Depends(patient_only), db: Session = Depends(get_db
 
 
 @router.get("/patients/me", response_model=PatientOut)
-def read_my_profile(patient: Patient = Depends(_my_patient)) -> PatientOut:
-    return patient_service.to_out(patient)
+def read_my_profile(patient: Patient = Depends(_my_patient),
+                    user: User = Depends(patient_only)) -> PatientOut:
+    return patient_service.to_out(patient, user)
 
 
 @router.patch("/patients/me", response_model=PatientOut)
 def update_my_profile(body: PatientUpdate, patient: Patient = Depends(_my_patient),
                       user: User = Depends(patient_only), db: Session = Depends(get_db)) -> PatientOut:
-    return patient_service.to_out(patient_service.update(db, patient, body, user))
+    return patient_service.to_out(patient_service.update(db, patient, body, user), user)
+
+
+def _sms_or_503() -> None:
+    if not sms_service.status().ready:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "SMS delivery is not available on this server, so a code cannot be sent. "
+                            "Please ask the hospital front desk to update your number.")
+
+
+@router.post("/patients/me/phone/request", response_model=PhoneCodeSent)
+def request_phone_code(body: PhoneChangeRequest, user: User = Depends(patient_only),
+                       _patient: Patient = Depends(_my_patient),
+                       db: Session = Depends(get_db)) -> PhoneCodeSent:
+    """Send a code to a new (or not-yet-verified) number. The current number is unchanged."""
+    _sms_or_503()
+    try:
+        issued = phone_service.request_code(db, user, body.phone)
+    except phone_service.AlreadyVerified:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This is already your verified mobile number.") from None
+    except phone_service.PhoneInUse:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "This mobile number is already registered to another account.") from None
+    except phone_service.Throttled:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                            "A code was sent recently. Please wait a minute before asking for another.") from None
+    except phone_service.SendFailed:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "We could not send the SMS right now. Please try again in a few minutes.") from None
+    out = PhoneCodeSent(detail="A 6-digit code has been sent to that number. Your current number is unchanged "
+                               "until you enter the code.", phone=body.phone)
+    if issued.code_for_dev_echo:
+        out.dev_code = issued.code_for_dev_echo
+        out.dev_notice = ("Development mode: no real SMS was sent. This code is shown only because the "
+                          "server is in development mode.")
+    return out
+
+
+@router.post("/patients/me/phone/confirm", response_model=PatientOut)
+def confirm_phone_code(body: PhoneChangeConfirm, patient: Patient = Depends(_my_patient),
+                       user: User = Depends(patient_only), db: Session = Depends(get_db)) -> PatientOut:
+    try:
+        patient = phone_service.confirm(db, user, patient, body.code)
+    except phone_service.InvalidCode:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "The code is wrong or has expired.") from None
+    except phone_service.PhoneInUse:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "This mobile number is already registered to another account.") from None
+    db.refresh(user)
+    return patient_service.to_out(patient, user)
 
 
 @router.get("/patients/me/consents", response_model=list[ConsentOut])

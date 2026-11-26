@@ -13,6 +13,7 @@ import unicodedata
 _NEGATION_ORIGINAL = {
     "नहीं", "नही", "नहि", "बिना",  # Hindi
     "نہیں", "نہی", "بغیر",  # Urdu
+    "नेईं", "नेई", "बगैर",  # Dogri
 }
 _NEGATION_ENGLISH = re.compile(
     r"\b(?:no|not|never|without|none|neither|nor|denies|deny|cannot|can't|don't|doesn't|didn't|"
@@ -27,7 +28,7 @@ NUMBER_WARNING = ("The numbers in the original text are missing from the English
                   "quantity may have been changed - read the original.")
 
 
-ROMANIZED_WARNING = ("This text was submitted as Hindi/Urdu but is written in English (Latin) letters, e.g. "
+ROMANIZED_WARNING = ("This text was submitted as Hindi/Urdu/Dogri but is written in English (Latin) letters, e.g. "
                      "'bukhar nahi hai'. The translation model expects Devanagari or Urdu script, so the "
                      "English text may be wrong or meaningless - read the original.")
 _INDIC_ARABIC_LETTER = re.compile(r"[ऀ-ॿ؀-ۿ]")

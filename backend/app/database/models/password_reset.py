@@ -20,6 +20,10 @@ class PasswordResetCode(UuidPk, Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # "password_reset" | "phone_change". phone_change codes go to `new_phone`, which replaces the
+    # account's number only after the code is confirmed.
+    purpose: Mapped[str] = mapped_column(String(16), default="password_reset", server_default="password_reset")
+    new_phone: Mapped[str | None] = mapped_column(String(16))
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     # Set when the code is used, replaced by a newer one, or locked after too many wrong tries.
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -20,6 +20,7 @@ class UiLanguage(StrEnum):
     EN = "en"
     HI = "hi"
     UR = "ur"
+    DOI = "doi"  # Dogri (ISO 639-3), written in Devanagari
 
 
 class Gender(StrEnum):
@@ -45,6 +46,7 @@ class ContentLanguage(StrEnum):
     EN = "en"
     HI = "hi"
     UR = "ur"
+    DOI = "doi"  # Dogri (ISO 639-3), written in Devanagari
 
 
 class ConversationStatus(StrEnum):

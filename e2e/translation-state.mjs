@@ -3,7 +3,7 @@
 //   "ready"        - the model loads: Hindi/Urdu text is machine-translated on submit
 //   "unavailable"  - not downloaded / AI off: intakes stay "translation pending"
 // Uses staff credentials (the endpoint is staff-only) and retries (Node keep-alive resets).
-const API = "http://127.0.0.1:8000/api";
+const API = process.env.E2E_API || "http://127.0.0.1:8000/api";
 
 async function withRetry(fn, tries = 4) {
   let last;

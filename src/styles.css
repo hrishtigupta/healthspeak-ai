@@ -78,7 +78,24 @@ html[lang=ur] h1,html[lang=ur] h2,html[lang=ur] h3,html[lang=ur] .btn{line-heigh
 .history .encounter ul{margin:4px 0 4px 18px}
 [dir=rtl] .history{border-left:0;padding-left:0;border-right:4px solid #3b82c4;padding-right:14px}
 .script-hint{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#eef5fb;border:1px solid #bcd6ee;color:#23496b;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px;line-height:1.5}
+.asr-note{background:#fff7e6;border:1px solid #f0d49a;color:#6b4a0b;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:12px;line-height:1.55;text-align:start}
+html[lang=doi] body{font-family:"Noto Sans Devanagari","Mangal","DM Sans",system-ui,sans-serif;line-height:1.7}
+html[lang=doi] h1,html[lang=doi] h2,html[lang=doi] h3,html[lang=doi] .btn{line-height:1.55}
+.message p{overflow-wrap:anywhere}
 .script-hint button{border:1px solid #3b82c4;background:#fff;color:#245d94;border-radius:8px;padding:6px 10px;font:inherit;font-weight:700;cursor:pointer}
 
 /* Profile and past-history pages */
 .profile-form{display:grid;gap:14px}.profile-form .actions{display:flex;justify-content:flex-end}.profile-form .summary-grid{grid-template-columns:1fr 1fr}.history-item{margin-bottom:16px}.history-item blockquote{margin:6px 0 14px;padding:12px 16px;background:#f4f6f4;border-radius:12px;color:#586b80;line-height:1.6}.history-item.focused{border-color:var(--green);box-shadow:0 0 0 3px #82a96b33}.history-item small{display:block;color:#8a98a6;font-size:10px;margin-top:10px}.chips{list-style:none;display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:8px 0 0}.chips li{background:#e5f1e2;color:#508344;border-radius:20px;padding:5px 11px;font-size:11px;font-weight:700}.small-note{font-size:11px!important;color:#8a98a6!important}.overlay .field{margin-bottom:10px}
+
+/* Language switcher inside the green sidebar box: the generic .lang-switch select rule (white
+   background) was loaded after .language select (white text), so the label was white on white.
+   Higher specificity + explicit option colours keep the selected language visible. */
+.language.lang-switch{display:flex}.language.lang-switch select{width:100%;background:transparent;color:#fff;border:0;outline:0;padding:2px 0;font-weight:700;cursor:pointer}.language.lang-switch select option{color:var(--navy);background:#fff}.language.lang-switch select:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* Chat: bubble wrapper, department suggestion, urgent styling, review step */
+.message .bubble{display:flex;flex-direction:column;gap:8px;min-width:0}.message.urgent p{border-color:#d98c8c;background:#fdf1f1}.thinking{color:#8a98a6!important;font-style:italic}.review-line{display:flex;justify-content:flex-end;margin-top:10px}.review-line .btn{padding:8px 14px;font-size:12px}.review-line .btn svg{width:16px;height:16px}
+.suggestion{border:1px solid var(--line);background:#f3f8ef;border-radius:13px;padding:12px 15px;display:flex;flex-direction:column;gap:6px}.suggestion.urgent{background:#fdf1f1;border-color:#d98c8c}.suggestion small{color:#8a98a6;font-size:10px}.suggestion>b{font-size:14px;color:var(--navy)}.suggestion .urgent-line{display:flex;align-items:center;gap:6px;color:#b03a3a;font-size:12px}.suggestion .urgent-line svg{width:16px;height:16px}.suggestion p{display:flex;gap:6px;align-items:center;margin:0;padding:0!important;border:0!important;background:transparent!important;font-size:11px;color:#8a98a6!important}.suggestion p svg{width:14px;flex-shrink:0;color:var(--green)}.strength{align-self:flex-start;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;background:#edf0f4;color:#60728a}.strength.clear{background:#e5f1e2;color:#508344}.strength.likely{background:#f3eee1;color:#a08448}
+.review-list{margin:8px 0 12px;padding-left:20px;color:#52647a;font-size:13px;line-height:1.6;max-height:180px;overflow:auto}.overlay .suggestion{margin-top:6px}
+/* Development-only one-time code banner and phone section */
+.dev-banner{display:flex;flex-direction:column;gap:4px;background:#fff7e0;border:1px dashed #c9a227;border-radius:12px;padding:10px 14px;margin:6px 0 12px;font-size:12px;color:#6b5a1a}.dev-banner code{font:800 22px/1.2 monospace;letter-spacing:4px;color:#3b3000}
+.phone-section{display:grid;gap:10px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.phone-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.phone-row small{display:block;color:#8a98a6;font-size:10px;margin-bottom:4px}.phone-row .status svg{width:14px;height:14px;margin-right:4px}.phone-section .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.phone-edit{display:grid;gap:8px}

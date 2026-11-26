@@ -14,13 +14,14 @@ import { initReactI18next } from "react-i18next";
 import en from "./en.json";
 import hi from "./hi.json";
 import ur from "./ur.json";
+import doi from "./doi.json";
+import { LANGUAGES, LANGUAGE_CODE_LIST, isRtl } from "./languages.js";
 
-export const UI_LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "hi", label: "हिन्दी" },
-  { code: "ur", label: "اردو" },
-];
-const CODES = UI_LANGUAGES.map((l) => l.code);
+// Dogri: the screens a patient uses to chat, speak and choose a language are translated in doi.json
+// (DRAFT, needs a fluent Dogri speaker's review). Any text not yet translated falls back to Hindi
+// (Dogri is written in the same Devanagari script) and then to English, so a screen is never blank.
+export const UI_LANGUAGES = LANGUAGES.map(({ code, label }) => ({ code, label }));
+const CODES = LANGUAGE_CODE_LIST;
 const DEVICE_KEY = "healthspeak.deviceLanguage";
 
 export function deviceLanguage() {
@@ -45,13 +46,15 @@ export function applyDocumentLanguage(code) {
   if (typeof document === "undefined") return;
   const html = document.documentElement;
   html.lang = code;
-  html.dir = code === "ur" ? "rtl" : "ltr";
+  html.dir = isRtl(code) ? "rtl" : "ltr";
 }
 
 i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, hi: { translation: hi }, ur: { translation: ur } },
+  resources: {
+    en: { translation: en }, hi: { translation: hi }, ur: { translation: ur }, doi: { translation: doi },
+  },
   lng: deviceLanguage(),
-  fallbackLng: "en",
+  fallbackLng: { doi: ["hi", "en"], default: ["en"] },
   interpolation: { escapeValue: false }, // React already escapes
   returnNull: false,
 });
@@ -62,6 +65,11 @@ applyDocumentLanguage(i18n.language);
 const ERROR_KEYS = [
   [/^Cannot reach the HealthSpeak server/, "errors.network"],
   [/^Invalid credentials$/, "errors.invalidCredentials"],
+  [/^SMS delivery is not available/, "errors.smsUnavailable"],
+  [/^We could not send the SMS/, "errors.smsSendFailed"],
+  [/already registered to another account/, "errors.phoneInUse"],
+  [/already your verified mobile number/, "errors.phoneAlreadyVerified"],
+  [/^A code was sent recently/, "errors.codeTooSoon"],
   [/^The code is wrong or has expired/, "errors.badCode"],
   [/already exists\. Please log in\.$/, "errors.duplicateAccount"],
   [/^Please give consent/, "errors.consentNeeded"],
@@ -72,6 +80,11 @@ const ERROR_KEYS = [
   [/^No words were recognised/, "errors.noSpeech"],
   [/^Please log in again\.$|^Not authenticated$/, "errors.sessionExpired"],
   [/^You do not have permission|^Not permitted$/, "errors.notAllowed"],
+  [/^This conversation has already been submitted/, "errors.conversationClosed"],
+  [/^This conversation is too long/, "errors.conversationTooLong"],
+  [/^Please describe your concern before submitting/, "errors.nothingToSubmit"],
+  [/^That voice transcription cannot be used/, "errors.badTranscription"],
+  [/^Text cannot be empty/, "errors.emptyMessage"],
   [/^Something went wrong/, "errors.generic"],
 ];
 

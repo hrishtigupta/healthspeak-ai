@@ -2,7 +2,7 @@
 import { api, tokenStore } from "./api.js";
 
 // The existing UI uses language/gender labels; the API uses short codes.
-export const LANGUAGE_CODES = { English: "en", Hindi: "hi", Urdu: "ur" };
+export { LANGUAGE_CODES } from "../i18n/languages.js";
 export const GENDER_CODES = {
   Female: "female",
   Male: "male",
@@ -69,3 +69,10 @@ export const confirmPasswordReset = (identifier, code, newPassword) =>
     body: { identifier: identifier.trim(), code: code.trim(), new_password: newPassword },
     auth: false,
   });
+
+// ----- mobile number: add / change / verify with an SMS code (sent to the NEW number) -----
+export const requestPhoneCode = (phone) =>
+  api("/patients/me/phone/request", { method: "POST", body: { phone: phone.trim() } });
+
+export const confirmPhoneCode = (code) =>
+  api("/patients/me/phone/confirm", { method: "POST", body: { code: code.trim() } });

@@ -2,7 +2,7 @@
 import { launch, HELPERS, sleep } from "./cdp.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
-const APP = "http://127.0.0.1:5173/";
+const APP = process.env.E2E_APP || "http://127.0.0.1:5173/";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + extra : ""}`); };
 
@@ -35,7 +35,7 @@ try {
   await t("btn('Log out')");
   await page.waitFor("window.__t.has('Your Health,') && window.__t.toast().includes('logged out')");
   check("logout returns home and clears token", !(await page.eval("sessionStorage.getItem('healthspeak.token')")));
-  const meAfter = await page.eval(`fetch('http://127.0.0.1:8000/api/users/me',{headers:{Authorization:'Bearer ${staffToken}'}}).then(r=>r.status)`);
+  const meAfter = await page.eval(`fetch('${process.env.E2E_API || "http://127.0.0.1:8000/api"}/users/me',{headers:{Authorization:'Bearer ${staffToken}'}}).then(r=>r.status)`);
   check("old token rejected by server after logout", meAfter === 401, `status ${meAfter}`);
 
   // 4. patient sign-up with consent
@@ -46,7 +46,7 @@ try {
   await t("btn('Sign up')");
   await page.waitFor("window.__t.has('Create your account')");
   const langOptions = await page.eval("[...document.querySelector('form.signup select').options].map(o=>o.text).join(',')");
-  check("sign-up language list is English/Hindi/Urdu", langOptions === "English,Hindi,Urdu", langOptions);
+  check("sign-up language list is English/Hindi/Urdu/Dogri", langOptions === "English,Hindi,Urdu,Dogri — डोगरी", langOptions);
   await page.eval("window.__t.set(document.querySelector('form.signup select'), 'Urdu')");
   await t(`set(window.__t.byPh('e.g. Ankit'), ${JSON.stringify(name)})`);
   await t(`set(window.__t.byPh('+91 Enter your mobile'), '${mobile}')`);

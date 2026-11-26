@@ -3,8 +3,8 @@
 import { launch, sleep } from "./cdp.mjs";
 
 const [, , BROWSER, SEED_PW] = process.argv;
-const APP = "http://127.0.0.1:5173/";
-const API = "http://127.0.0.1:8000/api";
+const APP = process.env.E2E_APP || "http://127.0.0.1:5173/";
+const API = process.env.E2E_API || "http://127.0.0.1:8000/api";
 const results = [];
 const check = (name, ok, extra = "") => { results.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + String(extra).slice(0, 200) : ""}`); };
 const page = await launch({ browser: BROWSER });

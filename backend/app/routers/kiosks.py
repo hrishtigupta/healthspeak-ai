@@ -58,7 +58,7 @@ class Heartbeat(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     app_version: str | None = Field(default=None, max_length=40)
-    ui_language: Literal["en", "hi", "ur"] | None = None
+    ui_language: Literal["en", "hi", "ur", "doi"] | None = None
     microphone: Literal["granted", "denied", "prompt", "unknown"] = "unknown"
     online: bool = True
 

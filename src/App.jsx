@@ -35,6 +35,7 @@ import {
   History,
   Sparkles,
   Headphones,
+  ClipboardList,
 } from "lucide-react";
 import {
   login as apiLogin,
@@ -44,10 +45,14 @@ import {
   LANGUAGE_CODES,
   GENDER_CODES,
   updateMyLanguage,
+  getMe,
+  hasStoredLogin,
 } from "./services/auth.js";
+import { tokenStore } from "./services/api.js";
 import Profile from "./pages/patient/Profile.jsx";
 import PastHistory from "./pages/patient/PastHistory.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
+import SuggestionCard from "./pages/patient/SuggestionCard.jsx";
 import {
   openConversation,
   sendMessage,
@@ -80,11 +85,13 @@ import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
 import { kioskIdleSeconds, kioskKey, sendHeartbeat } from "./services/kiosk.js";
 // The greeting is shown in the reader's display language (it is not stored).
 const GREETING = { by: "doctor", key: "chat.greeting" };
-const NAME_BY_CODE = { en: "English", hi: "Hindi", ur: "Urdu" };
+import { LANGUAGE_BY_CODE, NAME_BY_CODE, assistantLng } from "./i18n/languages.js";
 // Server messages -> the chat bubble format the UI already uses.
 const toChat = (m) => ({
   by: m.sender === "patient" ? "patient" : "doctor",
   text: m.content,
+  lang: m.language, // the language this message was written in (the assistant answers in the same one)
+  meta: m.sender === "patient" ? null : m.meta || null,
 });
 const ROLE_LABELS = {
   patient: "Patient",
@@ -125,6 +132,7 @@ export default function App() {
     [reviewIntake, ReviewIntake] = useState(null), // intake open in the review screen
     [transcribing, Transcribing] = useState(false), // server is transcribing a recording
     [transcriptionId, TranscriptionId] = useState(null), // transcription shown in the voice box
+    [asrLimited, AsrLimited] = useState(false), // speech model only partly supports this language
     [departments, Departments] = useState([]); // active departments (staff confirmation)
   const notify = (x) => {
     T(x);
@@ -134,6 +142,9 @@ export default function App() {
   // their own account), otherwise remembered for this device.
   const changeUiLanguage = async (code) => {
     i18n.changeLanguage(code);
+    // The language spoken/typed in the chat (and the assistant's replies) follows the display
+    // language, as it does at login. It can still be changed separately in the chat.
+    L(NAME_BY_CODE[code] || "English");
     if (user) {
       try {
         SetUser(await updateMyLanguage(code));
@@ -189,6 +200,7 @@ export default function App() {
         const t = await transcribeAudio(cid, blob, LANGUAGE_CODES[language] || "en");
         V(t.text); // the patient reviews (and may edit) this before sending
         TranscriptionId(t.id);
+        AsrLimited(Boolean(t.limitation)); // e.g. Dogri: Whisper has no Dogri model, say so
       } catch (err) {
         notify(translateError(err));
       } finally {
@@ -285,12 +297,21 @@ export default function App() {
     return false;
   };
   // Save one message in the patient's conversation (creating/resuming it first).
+  const openingRef = useRef(null); // the request in flight, so two callers share ONE conversation
   const ensureConversation = async () => {
     if (convId) return convId;
-    const conv = await openConversation();
-    ConvId(conv.id);
-    Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
-    return conv.id;
+    if (!openingRef.current) {
+      openingRef.current = openConversation()
+        .then((conv) => {
+          ConvId(conv.id);
+          Msgs([GREETING, ...conv.messages.map(toChat)]); // resume an unfinished chat
+          return conv.id;
+        })
+        .finally(() => {
+          openingRef.current = null;
+        });
+    }
+    return openingRef.current;
   };
   const postToIntake = async (text, inputMode, tid = null) => {
     const cid = await ensureConversation();
@@ -328,6 +349,7 @@ export default function App() {
       await postToIntake(voice, transcriptionId ? "voice_server" : "text", transcriptionId);
       V("");
       TranscriptionId(null);
+      AsrLimited(false);
       go("chat");
     } catch (err) {
       notify(translateError(err));
@@ -382,6 +404,34 @@ export default function App() {
       events.forEach((e) => window.removeEventListener(e, reset));
     };
   }, [kiosk, user]);
+  // After a refresh the login token is still in this tab: restore the session instead of
+  // silently showing the logged-out site. (The token is forgotten when the tab is closed.)
+  useEffect(() => {
+    if (!hasStoredLogin()) return undefined;
+    let cancelled = false; // React StrictMode runs effects twice in development: only one may act
+    getMe()
+      .then((u) => {
+        if (cancelled) return;
+        SetUser(u);
+        i18n.changeLanguage(u.ui_language); // this user's saved display language
+        L(NAME_BY_CODE[u.ui_language] || "English");
+        const target = { patient: "dashboard", staff: "staff", doctor: "doctor", admin: "admin" }[u.role] || "home";
+        // Only leave the landing/login page: never pull someone back from a page they already opened.
+        S((p) => (p === "home" || p === "login" ? target : p));
+      })
+      .catch(() => {
+        if (!cancelled) tokenStore.clear();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  // Opening the chat shows the patient's unfinished conversation (it is stored on the server).
+  useEffect(() => {
+    if (page === "chat" && user && user.role === "patient" && !convId) {
+      ensureConversation().catch(() => {}); // consent problems are explained when sending
+    }
+  }, [page, user]);
   // Load real data when a page that shows it is opened.
   useEffect(() => {
     // Clear first so stale data is never shown while the fresh copy loads.
@@ -840,6 +890,11 @@ export default function App() {
               aria-label={t("voice.placeholder")}
               dir="auto"
             />
+            {asrLimited && voice && (
+              <p className="asr-note" role="note" data-testid="asr-limited">
+                {t("voice.limited")}
+              </p>
+            )}
             <div className="mic-controls">
               <button onClick={() => Modal("voicehelp")} aria-label={t("voice.help")}>
                 ?
@@ -858,6 +913,7 @@ export default function App() {
                   stopRecorder(true);
                   V("");
                   TranscriptionId(null);
+                  AsrLimited(false);
                 }}
               >
                 <X/>
@@ -908,13 +964,24 @@ export default function App() {
             </div>
             <div className="messages">
               {messages.map((m, i) => (
-                <div className={"message " + m.by} key={i}>
+                <div className={"message " + m.by + (m.meta && m.meta.stage === "urgent" ? " urgent" : "")} key={i}>
                   <div className="avatar">
                     {m.by === "patient" ? t("common.you") : "HS"}
                   </div>
-                  <p dir="auto">{m.key ? t(m.key) : m.text}</p>
+                  <div className="bubble">
+                    <p dir="auto">{m.key ? t(m.key, { lng: assistantLng(LANGUAGE_CODES[language]) }) : m.text}</p>
+                    {m.meta && m.meta.department && ["ready", "urgent"].includes(m.meta.stage) && (
+                      <SuggestionCard meta={m.meta} lng={assistantLng(m.lang || LANGUAGE_CODES[language])} />
+                    )}
+                  </div>
                 </div>
               ))}
+              {sending && (
+                <div className="message doctor" aria-live="polite">
+                  <div className="avatar">HS</div>
+                  <div className="bubble"><p className="thinking">{t("chat.thinking", { lng: assistantLng(LANGUAGE_CODES[language]) })}</p></div>
+                </div>
+              )}
             </div>
             <div className="composer">
               <div className="compose-tools">
@@ -936,7 +1003,7 @@ export default function App() {
               </div>
               {isRomanizedIndic(message, LANGUAGE_CODES[language]) && (
                 <div className="script-hint" role="status" data-testid="script-hint">
-                  <span>{t(LANGUAGE_CODES[language] === "ur" ? "chat.scriptHintUr" : "chat.scriptHintHi")}</span>
+                  <span>{t(LANGUAGE_BY_CODE[LANGUAGE_CODES[language]].hintKey)}</span>
                   <button type="button" onClick={() => go("voice")}>
                     {t("chat.scriptHintVoice")}
                   </button>
@@ -954,6 +1021,11 @@ export default function App() {
                 <button onClick={send} disabled={sending} aria-label={t("chat.send")}>
                   <Send />
                 </button>
+              </div>
+              <div className="review-line">
+                <Btn kind="outline" onClick={() => Modal("endchat")} disabled={sending || messages.length < 2}>
+                  <ClipboardList /> {t("chat.reviewSend")}
+                </Btn>
               </div>
               <small>{t("chat.footer")}</small>
             </div>
@@ -1095,8 +1167,17 @@ export default function App() {
         </ModalBox>
       )}
       {modal === "endchat" && (
-        <ModalBox title={t("chat.endTitle")} close={() => Modal("")}>
-          <p>{t("chat.endText")}</p>
+        <ModalBox title={t("chat.reviewTitle")} close={() => Modal("")}>
+          <p>{t("chat.reviewText")}</p>
+          <ol className="review-list">
+            {messages.filter((m) => m.by === "patient").map((m, i) => (
+              <li key={i} dir="auto">{m.text}</li>
+            ))}
+          </ol>
+          {(() => {
+            const last = [...messages].reverse().find((m) => m.meta && m.meta.department);
+            return last ? <SuggestionCard meta={last.meta} lng={assistantLng(last.lang)} /> : null;
+          })()}
           <div className="actions">
             <Btn kind="outline" onClick={() => Modal("")}>
               {t("chat.continueChat")}

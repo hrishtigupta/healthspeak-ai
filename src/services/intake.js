@@ -65,7 +65,7 @@ export const analyseIntake = (id, source = "final_text") =>
 export const listDepartments = () => api("/departments");
 
 // ----- display helpers -----
-export const LANGUAGE_NAMES = { en: "English", hi: "Hindi", ur: "Urdu" };
+export { NAME_BY_CODE as LANGUAGE_NAMES } from "../i18n/languages.js";
 
 export const REVIEW_LABELS = {
   pending_review: "Awaiting staff review",

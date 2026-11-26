@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const API = "http://127.0.0.1:8000/api";
+const API = process.env.E2E_API || "http://127.0.0.1:8000/api";
 
 function seedPassword() {
   if (process.env.SEED_DEMO_PASSWORD) return process.env.SEED_DEMO_PASSWORD;
@@ -79,7 +79,8 @@ if (!health || !health.ok) throw new Error("API not reachable at 127.0.0.1:8000"
 
 // Warm up Vite (it compiles modules on first request; a cold start can make the first suite's page load time out).
 for (const path of ["/", "/src/main.jsx", "/src/App.jsx"]) {
-  await fetch(`http://127.0.0.1:5173${path}`).then((r) => r.arrayBuffer()).catch(() => {});
+  const app = (process.env.E2E_APP || "http://127.0.0.1:5173").replace(/\/+$/, "");
+  await fetch(`${app}${path}`).then((r) => r.arrayBuffer()).catch(() => {});
 }
 
 const suites = [
@@ -92,6 +93,8 @@ const suites = [
   ["09-symptoms-history.mjs"],
   ["10-script-hint.mjs"],
   ["11-real-translation.mjs"], // skips itself when the local translation model is not installed
+  ["12-chat-profile-otp.mjs"], // needs APP_ENV=development + SMS_PROVIDER=console (the local default)
+  ["13-dogri.mjs"], // Dogri: picker, chat, urgent symptoms, staff view (real translation if the model is installed)
 ];
 
 const original = await demoPatientLanguage(pw, "en");
