@@ -1,0 +1,5298 @@
+{
+  "info": {
+    "name": "HealthSpeak AI API",
+    "description": "HealthSpeak AI: multilingual voice-first hospital intake assistant (FastAPI + PostgreSQL).\n\nHOW TO USE\n1. Start the API (python -m uvicorn app.main:app --port 8000) and the database.\n2. Collection > Variables: set `seedPassword` to SEED_DEMO_PASSWORD from the project's .env (never commit it).\n3. Run the folder 'Demo flow' with the Collection Runner (top to bottom). Each request has tests.\n4. 'All endpoints' lists every operation (78) generated from /openapi.json for manual trying.\n\nSynthetic data only. The registered demo patient uses a random phone number on each run.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000/api",
+      "description": "Use 127.0.0.1, not localhost"
+    },
+    {
+      "key": "seedPassword",
+      "value": "",
+      "description": "SEED_DEMO_PASSWORD from .env (for staff/doctor/admin demo logins). Do not commit."
+    },
+    {
+      "key": "staffEmail",
+      "value": "staff@example.com"
+    },
+    {
+      "key": "patientPassword",
+      "value": "Postman-Demo-1-Synthetic"
+    },
+    {
+      "key": "newPhone",
+      "value": ""
+    },
+    {
+      "key": "consentVersion",
+      "value": ""
+    },
+    {
+      "key": "patientToken",
+      "value": ""
+    },
+    {
+      "key": "staffToken",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "doctorToken",
+      "value": ""
+    },
+    {
+      "key": "conversationId",
+      "value": ""
+    },
+    {
+      "key": "intakeId",
+      "value": ""
+    },
+    {
+      "key": "departmentId",
+      "value": ""
+    },
+    {
+      "key": "id",
+      "value": ""
+    },
+    {
+      "key": "patientId",
+      "value": ""
+    },
+    {
+      "key": "symptomId",
+      "value": ""
+    },
+    {
+      "key": "queueEntryId",
+      "value": ""
+    },
+    {
+      "key": "appointmentId",
+      "value": ""
+    },
+    {
+      "key": "scheduleId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "ruleId",
+      "value": ""
+    },
+    {
+      "key": "kioskId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Demo flow",
+      "item": [
+        {
+          "name": "0. Health (no login)",
+          "item": [
+            {
+              "name": "API is up",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Database reachable",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/db",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "db"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "1. Patient: register, chat, urgent, submit",
+          "item": [
+            {
+              "name": "1.1 Current consent text (English)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/consent/current?language=en",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "consent",
+                    "current"
+                  ],
+                  "query": [
+                    {
+                      "key": "language",
+                      "value": "en"
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "The consent text is versioned. The patient must accept it before any health data is saved."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('consentVersion', j.version);",
+                      "pm.test('draft wording is flagged', function () { pm.expect(j.is_draft).to.eql(true); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.2 Register a synthetic patient",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "register"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Synthetic data only. The phone number is random on every run.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"Postman Demo Patient\",\n  \"phone\": \"{{newPhone}}\",\n  \"date_of_birth\": \"1990-05-05\",\n  \"gender\": \"female\",\n  \"password\": \"{{patientPassword}}\",\n  \"preferred_language\": \"en\",\n  \"ui_language\": \"en\",\n  \"consent\": {\n    \"version\": \"{{consentVersion}}\",\n    \"granted\": true,\n    \"language\": \"en\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.collectionVariables.set('newPhone', '9' + Math.floor(100000000 + Math.random() * 899999999));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('patientToken', j.access_token);",
+                      "pm.test('a patient profile is created', function () { pm.expect(j.patient.full_name).to.eql('Postman Demo Patient'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.3 Log in as the patient",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"{{newPhone}}\",\n  \"password\": \"{{patientPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('patientToken', j.access_token);",
+                      "pm.test('role is patient', function () { pm.expect(j.user.role).to.eql('patient'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.4 My profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.5 Open the chat (conversation)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('conversation opened (201 new, 200 resumed)', function () { pm.expect([200, 201]).to.include(pm.response.code); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('conversationId', j.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.6 Off-topic question is redirected (input guard)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"How is the weather today?\",\n  \"language\": \"en\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "pm.test('redirected, not answered', function () { pm.expect(j.assistant_message.meta.stage).to.eql('guard'); pm.expect(j.assistant_message.meta.guard).to.eql('unrelated'); });",
+                      "pm.test('no symptoms extracted', function () { pm.expect(j.assistant_message.meta.symptoms.length).to.eql(0); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.7 Harmful request is refused (input guard)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"How can I make a bomb?\",\n  \"language\": \"en\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "pm.test('refused briefly', function () { pm.expect(j.assistant_message.meta.guard).to.eql('unsafe'); pm.expect(j.assistant_message.content).to.include(\"can't help\"); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.8 A real health concern (asks a follow-up)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"I have had a fever and a headache for three days\",\n  \"language\": \"en\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "const terms = j.assistant_message.meta.symptoms.map(function (s) { return s.term; });",
+                      "pm.test('fever and headache understood', function () { pm.expect(terms).to.include('fever'); pm.expect(terms).to.include('headache'); });",
+                      "pm.test('a department is suggested as preliminary', function () { pm.expect(j.assistant_message.meta.department).to.not.eql(null); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.9 An emergency symptom (urgent guidance first)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"I also have severe chest pain\",\n  \"language\": \"en\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "pm.test('emergency guidance, no question first', function () { pm.expect(j.assistant_message.meta.stage).to.eql('urgent'); pm.expect(j.assistant_message.content).to.include('112'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.10 Submit the conversation (creates the intake)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/submit",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "submit"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('intakeId', j.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "1.11 My submitted concerns",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/intakes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "intakes"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "2. Staff: queue, evidence, priority, confirm",
+          "item": [
+            {
+              "name": "2.1 Log in as staff",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Set the collection variable seedPassword to SEED_DEMO_PASSWORD from the project's .env file first.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"{{staffEmail}}\",\n  \"password\": \"{{seedPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('staffToken', j.access_token);",
+                      "pm.test('role is staff', function () { pm.expect(j.user.role).to.eql('staff'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2.2 Active departments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/departments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "departments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "const gm = j.find(function (d) { return d.code === 'general_medicine'; });",
+                      "pm.test('12 departments are seeded', function () { pm.expect(j.length).to.be.at.least(12); });",
+                      "pm.collectionVariables.set('departmentId', gm.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2.3 Intake queue (urgent first)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes?review_status=pending_review&limit=200",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes"
+                  ],
+                  "query": [
+                    {
+                      "key": "review_status",
+                      "value": "pending_review"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "200"
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "const mine = j.items.find(function (i) { return i.id === pm.collectionVariables.get('intakeId'); });",
+                      "pm.test('the new intake is in the queue and flagged urgent', function () { pm.expect(mine).to.not.eql(undefined); pm.expect(mine.priority).to.eql('urgent'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2.4 Read the intake (original words, evidence, priority)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.test('saved priority is urgent, set by the system', function () { pm.expect(j.priority).to.eql('urgent'); pm.expect(j.priority_source).to.eql('system'); });",
+                      "pm.test('every field says how it was found', function () { pm.expect(j.field_evidence.length).to.be.at.least(5); });",
+                      "pm.test('original text kept as typed', function () { pm.expect(j.original_text).to.include('severe chest pain'); });",
+                      "pm.test('no invented percentages', function () { pm.expect(JSON.stringify(j.field_evidence)).to.not.include('%'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2.5 Staff add a missed symptom (labelled as staff)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/symptoms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "symptoms"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"term\": \"chills\",\n  \"status\": \"current\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                      "const j = pm.response.json();",
+                      "pm.test('not presented as AI extraction', function () { pm.expect(j.evidence.level).to.eql('staff'); pm.expect(j.evidence.label).to.eql('Added or corrected by staff'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2.6 Staff change priority (reason required)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/priority",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "priority"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priority\": \"normal\",\n  \"reason\": \"Postman demo: reviewed by staff.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.test('now normal, set by staff, reason kept', function () { pm.expect(j.priority).to.eql('normal'); pm.expect(j.priority_source).to.eql('staff'); pm.expect(j.priority_reason).to.include('Postman demo'); });",
+                      "pm.test('change is in the history', function () { pm.expect(j.revisions.some(function (r) { return r.field === 'priority'; })).to.eql(true); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2.7 Staff confirm the department",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "confirm"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"department_id\": \"{{departmentId}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.test('confirmed by staff, original words untouched', function () { pm.expect(j.review_status).to.eql('confirmed'); pm.expect(j.original_text).to.include('chest pain'); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Needs the collection variable seedPassword (SEED_DEMO_PASSWORD in .env)."
+        },
+        {
+          "name": "3. Security and error handling (negative tests)",
+          "item": [
+            {
+              "name": "3.1 No token -> 401",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.2 Patient token on a staff endpoint -> 403",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.3 Wrong password -> 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"{{newPhone}}\",\n  \"password\": \"definitely-wrong-password\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.4 SQL-injection text as login -> 401 (never 500)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"' OR 1=1 --\",\n  \"password\": \"' OR '1'='1\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('rejected cleanly', function () { pm.expect([401, 422]).to.include(pm.response.code); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.5 Missing fields -> 422",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"someone\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 422', function () { pm.response.to.have.status(422); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.6 Staff priority change without a reason -> 422",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/priority",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "priority"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priority\": \"urgent\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 422', function () { pm.response.to.have.status(422); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.7 Someone else's / unknown conversation -> 404",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/00000000-0000-0000-0000-000000000000",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "00000000-0000-0000-0000-000000000000"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3.8 Message to a submitted conversation -> 409",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"one more thing\",\n  \"language\": \"en\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 409', function () { pm.response.to.have.status(409); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "4. Admin and doctor (optional, need seedPassword)",
+          "item": [
+            {
+              "name": "4.1 Log in as admin",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"admin@example.com\",\n  \"password\": \"{{seedPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('adminToken', j.access_token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4.2 System health (database, AI models, ffmpeg)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/system-health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "system-health"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4.3 Users",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4.4 Routing rules",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/routing-rules",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "routing-rules"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4.5 Log in as doctor",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"doctor@example.com\",\n  \"password\": \"{{seedPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                      "const j = pm.response.json();",
+                      "pm.collectionVariables.set('doctorToken', j.access_token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4.6 Doctor dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/dashboard/doctor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "doctor"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4.7 Doctor cannot read intakes -> 403",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "Run top to bottom with the Collection Runner."
+    },
+    {
+      "name": "All endpoints (generated from OpenAPI)",
+      "item": [
+        {
+          "name": "admin",
+          "item": [
+            {
+              "name": "GET /admin/departments  -  All Departments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/departments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "departments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "All Departments"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /admin/departments  -  Create Department",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/departments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "departments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Create Department",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"string\",\n  \"name\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /admin/departments/{department_id}  -  Update Department",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/departments/{{departmentId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "departments",
+                    "{{departmentId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Update Department",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /admin/kiosks  -  List Kiosks",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/kiosks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "kiosks"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Kiosks"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /admin/kiosks  -  Register Kiosk",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/kiosks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "kiosks"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Register Kiosk",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"string\",\n  \"name\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /admin/kiosks/{kiosk_id}  -  Update Kiosk",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/kiosks/{{kioskId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "kiosks",
+                    "{{kioskId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Update Kiosk",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /admin/kiosks/{kiosk_id}/rotate-key  -  Rotate Key",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/kiosks/{{kioskId}}/rotate-key",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "kiosks",
+                    "{{kioskId}}",
+                    "rotate-key"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Rotate Key"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /admin/routing-rules  -  List Rules",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/routing-rules",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "routing-rules"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Rules"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /admin/routing-rules  -  Create Rule",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/routing-rules",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "routing-rules"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Create Rule",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phrase\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /admin/routing-rules/{rule_id}  -  Update Rule",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/routing-rules/{{ruleId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "routing-rules",
+                    "{{ruleId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Update Rule",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /admin/system-health  -  System Health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/system-health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "system-health"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "System Health"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /admin/users  -  List Users",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Users"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /admin/users  -  Create User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Create User",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"string\",\n  \"password\": \"string\",\n  \"role\": \"patient\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ai",
+          "item": [
+            {
+              "name": "GET /ai/status  -  Ai Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ai/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ai",
+                    "status"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Ai Status"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "appointments",
+          "item": [
+            {
+              "name": "POST /appointments  -  Book",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Book",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patient_id\": \"{{id}}\",\n  \"doctor_user_id\": \"{{id}}\",\n  \"starts_at\": \"2026-11-27T10:00:00+05:30\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /appointments  -  List Appointments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Appointments"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /appointments/slots  -  Free Slots",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/slots?doctor_user_id={{id}}&day=1990-01-01",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "slots"
+                  ],
+                  "query": [
+                    {
+                      "key": "doctor_user_id",
+                      "value": "{{id}}"
+                    },
+                    {
+                      "key": "day",
+                      "value": "1990-01-01"
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Free Slots"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /appointments/{appointment_id}/status  -  Appointment Status",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/appointments/{{appointmentId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "appointments",
+                    "{{appointmentId}}",
+                    "status"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Appointment Status",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"completed\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "auth",
+          "item": [
+            {
+              "name": "POST /auth/login  -  Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Login",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"string\",\n  \"password\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /auth/logout  -  Logout",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/logout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "logout"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Logout"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /auth/password-reset/confirm  -  Password Reset Confirm",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/password-reset/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "password-reset",
+                    "confirm"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Password Reset Confirm",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"string\",\n  \"code\": \"string\",\n  \"new_password\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /auth/password-reset/request  -  Password Reset Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/password-reset/request",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "password-reset",
+                    "request"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Password Reset Request",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"identifier\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "consent",
+          "item": [
+            {
+              "name": "GET /consent/current  -  Current Consent",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/consent/current",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "consent",
+                    "current"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Current Consent"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "conversations",
+          "item": [
+            {
+              "name": "POST /conversations  -  Open Conversation",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Open Conversation"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /conversations/{conversation_id}  -  Read Conversation",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read Conversation"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /conversations/{conversation_id}/messages  -  Send Message",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/messages",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "messages"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Send Message",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /conversations/{conversation_id}/submit  -  Submit Conversation",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/submit",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "submit"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Submit Conversation"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /conversations/{conversation_id}/transcriptions  -  Transcribe",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/conversations/{{conversationId}}/transcriptions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "conversations",
+                    "{{conversationId}}",
+                    "transcriptions"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Transcribe  (multipart upload: choose a file in Body > form-data: audio, language)"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "dashboard",
+          "item": [
+            {
+              "name": "GET /dashboard/admin  -  Admin Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/dashboard/admin",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "admin"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Admin Dashboard"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /dashboard/doctor  -  Doctor Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/dashboard/doctor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "doctor"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Doctor Dashboard"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /dashboard/staff  -  Staff Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/dashboard/staff",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "staff"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Staff Dashboard"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "departments",
+          "item": [
+            {
+              "name": "GET /departments  -  Active Departments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/departments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "departments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Active Departments"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "doctor-schedules",
+          "item": [
+            {
+              "name": "GET /doctor-schedules  -  List Schedules",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/doctor-schedules",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "doctor-schedules"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Schedules"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /doctor-schedules  -  Create Schedule",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/doctor-schedules",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "doctor-schedules"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Create Schedule",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"doctor_user_id\": \"{{id}}\",\n  \"department_id\": \"{{id}}\",\n  \"weekday\": 0.0,\n  \"start_time\": \"string\",\n  \"end_time\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /doctor-schedules/{schedule_id}  -  Update Schedule",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/doctor-schedules/{{scheduleId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "doctor-schedules",
+                    "{{scheduleId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Update Schedule",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "doctors",
+          "item": [
+            {
+              "name": "GET /doctors  -  List Doctors",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/doctors",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "doctors"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{doctorToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Doctors"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "health",
+          "item": [
+            {
+              "name": "GET /health  -  Api Health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Api Health"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /health/db  -  Database Health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/db",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "db"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Database Health"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "intakes",
+          "item": [
+            {
+              "name": "GET /intakes  -  List Intakes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Intakes"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /intakes/{intake_id}  -  Read Intake",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read Intake"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /intakes/{intake_id}  -  Correct Intake",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Correct Intake",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"final_text\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /intakes/{intake_id}/analyse  -  Analyse Intake",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/analyse",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "analyse"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Analyse Intake",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /intakes/{intake_id}/confirm  -  Confirm Intake",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "confirm"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Confirm Intake",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"department_id\": \"{{id}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /intakes/{intake_id}/history  -  Intake History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/history",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "history"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Intake History"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /intakes/{intake_id}/priority  -  Change Priority",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/priority",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "priority"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Change Priority",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priority\": \"urgent\",\n  \"reason\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /intakes/{intake_id}/symptoms  -  Add Symptom",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/symptoms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "symptoms"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Add Symptom",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"term\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /intakes/{intake_id}/symptoms/{symptom_id}/review  -  Review Symptom",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/symptoms/{{symptomId}}/review",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "symptoms",
+                    "{{symptomId}}",
+                    "review"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Review Symptom",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"confirm\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /intakes/{intake_id}/translate  -  Retry Translation",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/intakes/{{intakeId}}/translate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "intakes",
+                    "{{intakeId}}",
+                    "translate"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Retry Translation"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "kiosks",
+          "item": [
+            {
+              "name": "POST /kiosks/heartbeat  -  Kiosk Heartbeat",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/kiosks/heartbeat",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "kiosks",
+                    "heartbeat"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Kiosk Heartbeat",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "notifications",
+          "item": [
+            {
+              "name": "GET /notifications  -  My Notifications",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notifications"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "My Notifications"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /notifications/read-all  -  Read All",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications/read-all",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "read-all"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read All"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /notifications/{notification_id}/read  -  Read Notification",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "notifications",
+                    "{{notificationId}}",
+                    "read"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read Notification"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "patients",
+          "item": [
+            {
+              "name": "POST /patients  -  Register Walk In",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Register Walk In",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"string\",\n  \"date_of_birth\": \"1990-01-01\",\n  \"gender\": \"female\",\n  \"consent\": {\n    \"version\": \"string\",\n    \"granted\": true\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients  -  Search Patients",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Search Patients"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/me  -  Read My Profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read My Profile"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /patients/me  -  Update My Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Update My Profile",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/me/appointments  -  My Appointments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/appointments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "appointments"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "My Appointments"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/me/consents  -  My Consent History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/consents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "consents"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "My Consent History"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /patients/me/consents  -  Record My Consent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/consents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "consents"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Record My Consent",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"version\": \"string\",\n  \"granted\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/me/history  -  My History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/history",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "history"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "My History"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/me/intakes  -  My Intakes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/intakes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "intakes"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "My Intakes"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /patients/me/phone/confirm  -  Confirm Phone Code",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/phone/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "phone",
+                    "confirm"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Confirm Phone Code",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /patients/me/phone/request  -  Request Phone Code",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/phone/request",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "phone",
+                    "request"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Request Phone Code",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phone\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/me/visits  -  My Visits",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/me/visits",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "me",
+                    "visits"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "My Visits"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /patients/register  -  Register",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "register"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Register",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"string\",\n  \"date_of_birth\": \"1990-01-01\",\n  \"gender\": \"female\",\n  \"phone\": \"string\",\n  \"password\": \"string\",\n  \"consent\": {\n    \"version\": \"string\",\n    \"granted\": true\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/{patient_id}  -  Read Patient",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read Patient"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /patients/{patient_id}  -  Correct Patient",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Correct Patient",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/{patient_id}/consents  -  Patient Consent History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/consents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "consents"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Patient Consent History"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /patients/{patient_id}/consents  -  Record Patient Consent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/consents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "consents"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Record Patient Consent",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"version\": \"string\",\n  \"granted\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /patients/{patient_id}/history  -  Patient History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/patients/{{patientId}}/history",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "patients",
+                    "{{patientId}}",
+                    "history"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Patient History"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "queue",
+          "item": [
+            {
+              "name": "POST /queue  -  Add To Queue",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/queue",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "queue"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Add To Queue",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"patient_id\": \"{{id}}\",\n  \"department_id\": \"{{id}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /queue  -  List Queue",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/queue",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "queue"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "List Queue"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /queue/{entry_id}  -  Read Visit",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/queue/{{queueEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "queue",
+                    "{{queueEntryId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read Visit"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /queue/{entry_id}  -  Reassign",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/queue/{{queueEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "queue",
+                    "{{queueEntryId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Reassign",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /queue/{entry_id}/notes  -  Add Note",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/queue/{{queueEntryId}}/notes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "queue",
+                    "{{queueEntryId}}",
+                    "notes"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Add Note",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"text\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "POST /queue/{entry_id}/status  -  Change Status",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/queue/{{queueEntryId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "queue",
+                    "{{queueEntryId}}",
+                    "status"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{staffToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Change Status",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"waiting\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "users",
+          "item": [
+            {
+              "name": "GET /users/me  -  Read Me",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    "me"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Read Me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "PATCH /users/me/preferences  -  Update My Preferences",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/me/preferences",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    "me",
+                    "preferences"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{patientToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Update My Preferences",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ui_language\": \"en\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('responds without a server error', function () { pm.expect(pm.response.code).to.be.below(500); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
